@@ -19,7 +19,7 @@ export default function loginScreen() {
           Inicia sesión para continuar
         </Text>
         <InputForm placeholder="Ejemplo@gmail.com" label="Email" />
-        <InputForm placeholder="Contraseña" label="Contraseña" />
+        <InputForm placeholder="Contraseña" label="Contraseña" secure={true} />
 
         <Text className="font-Inter-Medium color-primary text-md  text-right mt-5 mb-12">
           No tienes cuenta? Registrate
