@@ -3,6 +3,7 @@ import { Slot, SplashScreen } from "expo-router";
 import { useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { Keyboard, TouchableWithoutFeedback } from "react-native";
 import "./global.css";
 
 SplashScreen.preventAutoHideAsync();
@@ -22,9 +23,15 @@ export default function RootLayout() {
 
   if (!fontsLoaded && !error) return null;
 
+  const dismissKeyboard = () => {
+    Keyboard.dismiss();
+  };
+
   return (
-    <SafeAreaView>
-      <Slot />
-    </SafeAreaView>
+    <TouchableWithoutFeedback onPress={dismissKeyboard}>
+      <SafeAreaView>
+        <Slot />
+      </SafeAreaView>
+    </TouchableWithoutFeedback>
   );
 }
