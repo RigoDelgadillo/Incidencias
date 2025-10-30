@@ -1,13 +1,30 @@
-import { Text, View } from "react-native";
+import { useFonts } from "expo-font";
+import { Slot, SplashScreen } from "expo-router";
+import { useEffect } from "react";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import "../global.css";
+import "./global.css";
+
+SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  const [fontsLoaded, error] = useFonts({
+    "Inter_18pt-Bold": require("../assets/fonts/Inter_18pt-Bold.ttf"),
+    "Inter_18pt-Medium": require("../assets/fonts/Inter_18pt-Medium.ttf"),
+    "Inter_18pt-Regular": require("../assets/fonts/Inter_18pt-Regular.ttf"),
+  });
+
+  useEffect(() => {
+    if (error) throw error;
+
+    if (fontsLoaded) SplashScreen.hideAsync();
+  }, [fontsLoaded]);
+
+  if (!fontsLoaded && !error) return null;
+
   return (
-    <View className="flex-1 items-center justify-center bg-white">
-      <Text className="text-xl font-bold text-blue-500">
-        Hola mundo desde RootLayout con NativeWind!
-      </Text>
-    </View>
+    <SafeAreaView>
+      <Slot />
+    </SafeAreaView>
   );
 }

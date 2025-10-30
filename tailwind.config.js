@@ -7,7 +7,19 @@ module.exports = {
   ],
   presets: [require("nativewind/preset")],
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        primary: "#137FEC",
+        bgGray: "#EAEEF3",
+        textGray: "#465C79",
+      },
+
+      fontFamily: {
+        "Inter-Regular": ["Inter_18pt-Regular", "sans-serif"],
+        "Inter-Bold": ["Inter_18pt-Bold", "sans-serif"],
+        "Inter-Medium": ["Inter_18pt-Medium", "sans-serif"],
+      },
+    },
   },
   plugins: [],
 };
