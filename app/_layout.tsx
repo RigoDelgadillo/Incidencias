@@ -29,7 +29,7 @@ export default function RootLayout() {
 
   return (
     <TouchableWithoutFeedback onPress={dismissKeyboard}>
-      <SafeAreaView>
+      <SafeAreaView className="flex-1 bg-bgWhite">
         <Slot />
       </SafeAreaView>
     </TouchableWithoutFeedback>
