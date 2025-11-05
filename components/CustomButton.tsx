@@ -4,6 +4,7 @@ import { Pressable, Text } from "react-native";
 interface Props {
   onPress?: () => void;
   label: string;
+  disabled?: boolean;
 }
 
 export default function CustomButton({ onPress, label }: Props) {
