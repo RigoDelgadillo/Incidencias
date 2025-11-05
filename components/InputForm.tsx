@@ -3,6 +3,8 @@ import { Text, TextInput, View } from "react-native";
 
 interface Props {
   label: string;
+  value: string;
+  onChangeText?: (text: string) => void;
   placeholder?: string;
   secure?: boolean;
   isNumber?: boolean;
@@ -10,6 +12,8 @@ interface Props {
 
 export default function InputForm({
   label,
+  value,
+  onChangeText,
   placeholder,
   secure,
   isNumber = false,
@@ -24,6 +28,8 @@ export default function InputForm({
         secureTextEntry={secure}
         keyboardType={isNumber ? "phone-pad" : "default"}
         maxLength={isNumber ? 15 : undefined}
+        value={value}
+        onChangeText={onChangeText}
       />
     </View>
   );

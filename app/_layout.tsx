@@ -3,6 +3,8 @@ import { Slot, SplashScreen } from "expo-router";
 import { useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import AuthProvider from "@/providers/AuthProvider";
+
 import { Keyboard, TouchableWithoutFeedback } from "react-native";
 import "./global.css";
 
@@ -28,10 +30,12 @@ export default function RootLayout() {
   };
 
   return (
-    <TouchableWithoutFeedback onPress={dismissKeyboard}>
-      <SafeAreaView className="flex-1 bg-bgWhite">
-        <Slot />
-      </SafeAreaView>
-    </TouchableWithoutFeedback>
+    <AuthProvider>
+      <TouchableWithoutFeedback onPress={dismissKeyboard}>
+        <SafeAreaView className="flex-1 bg-bgWhite">
+          <Slot />
+        </SafeAreaView>
+      </TouchableWithoutFeedback>
+    </AuthProvider>
   );
 }
