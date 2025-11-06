@@ -35,9 +35,27 @@ export default function loginScreen() {
       });
 
       if (error) throw error;
-      // Si el login es exitoso redirige a (user)
+
       if (data?.user) {
-        router.replace("/(user)");
+        
+        const { data: profile, error: profileErr } = await supabase
+          .from("usuarios")
+          .select("id_rol")
+          .eq("id_usuario", data.user.id)
+          .maybeSingle();
+
+        if (profileErr || !profile) {
+          Alert.alert("Error", "No se pudo obtener el rol del usuario.");
+          router.replace("/(auth)/login");
+          return;
+        }
+
+        const roleNum = profile.id_rol ? Number(profile.id_rol) : null;
+
+        if (roleNum === 1) router.replace("/(admin)");
+        else if (roleNum === 2) router.replace("/(user)");
+        else if (roleNum === 3) router.replace("/(tecnico)");
+        else router.replace("/(auth)/login");
       } else {
         Alert.alert("Error", "No se pudo iniciar sesión.");
       }
