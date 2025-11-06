@@ -5,12 +5,13 @@ interface Props {
   onPress?: () => void;
   label: string;
   disabled?: boolean;
+  color?: string;
 }
 
-export default function CustomButton({ onPress, label }: Props) {
+export default function CustomButton({ onPress, label, color="bg-primary" }: Props) {
   return (
     <Pressable
-      className="bg-primary rounded-lg py-4 px-10 active:opacity-80"
+      className={`${color} rounded-full py-4 active:opacity-80`}
       onPress={onPress}
     >
       <Text className="text-white text-center text-xl font-Inter-Bold">
