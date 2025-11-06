@@ -1,7 +1,6 @@
 import { useFonts } from "expo-font";
 import { Slot, SplashScreen } from "expo-router";
-import { useEffect } from "react";
-import { SafeAreaView } from "react-native-safe-area-context";
+import React, { useEffect } from "react";
 
 import AuthProvider from "@/providers/AuthProvider";
 
@@ -32,9 +31,7 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <Pressable onPress={dismissKeyboard} className="flex-1">
-        <SafeAreaView className="flex-1 bg-bgWhite">
-          <Slot />
-        </SafeAreaView>
+        <Slot/>
       </Pressable>
     </AuthProvider>
   );
