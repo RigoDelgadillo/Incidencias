@@ -5,7 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import AuthProvider from "@/providers/AuthProvider";
 
-import { Keyboard, TouchableWithoutFeedback } from "react-native";
+import { Keyboard, Pressable } from "react-native";
 import "./global.css";
 
 SplashScreen.preventAutoHideAsync();
@@ -31,11 +31,11 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <TouchableWithoutFeedback onPress={dismissKeyboard}>
+      <Pressable onPress={dismissKeyboard} className="flex-1">
         <SafeAreaView className="flex-1 bg-bgWhite">
           <Slot />
         </SafeAreaView>
-      </TouchableWithoutFeedback>
+      </Pressable>
     </AuthProvider>
   );
 }
