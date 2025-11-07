@@ -49,7 +49,16 @@ const AdminLayout = () => {
           />
 
           <Drawer.Screen
-            name="(CRUDS)/CRUDusuarios"
+            name="CRUDusuarios"
+            options={{
+              headerTitle: () => <CustomHeaderTitleDrawer
+                title="Gestion Usuarios"
+              />,
+              drawerItemStyle: { display: 'none' },
+            }}
+          />
+          <Drawer.Screen
+            name="asignartecnico"
             options={{
               drawerItemStyle: { display: 'none' },
             }}

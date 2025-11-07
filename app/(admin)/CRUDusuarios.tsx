@@ -74,7 +74,7 @@ export default function CRUDUsuarios() {
       if (usuariosData && Array.isArray(usuariosData)) {
         if (usuariosData.length > 0) {
           // Mapear usuarios con roles fijos
-          const mapped = usuariosData.map(usuario => {
+          const mapped = usuariosData.map((usuario, index) => {
             // Convertir el rol_id a número para buscar en el mapa
             const rolId = parseInt(usuario.rol_id || usuario.role_id || usuario.id_rol || '0', 10);
             const rol = rolesMap.get(rolId);
@@ -87,7 +87,7 @@ export default function CRUDUsuarios() {
             });
 
             return {
-              id: String(usuario.id || usuario.user_id || usuario.uid || ''),
+              id: String(usuario.id || usuario.user_id || usuario.uid || `temp-${index}`), 
               name: usuario.nombre || usuario.first_name || usuario.name || '',
               lastName: usuario.apellido || usuario.last_name || usuario.apellidos || '',
               phone: usuario.telefono || usuario.phone || usuario.tel || '',
