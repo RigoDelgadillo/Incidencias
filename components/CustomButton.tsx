@@ -11,7 +11,7 @@ interface Props {
 export default function CustomButton({ onPress, label, color="bg-primary" }: Props) {
   return (
     <Pressable
-      className={`${color} rounded-full py-4 active:opacity-80`}
+      className={`${color} rounded-full mt-10 py-4 active:opacity-80`}
       onPress={onPress}
     >
       <Text className="text-white text-center text-xl font-Inter-Bold">

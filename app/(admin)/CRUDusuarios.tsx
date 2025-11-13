@@ -3,7 +3,7 @@ import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Link } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Modal, RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 
 interface User {
@@ -23,6 +23,12 @@ export default function CRUDUsuarios() {
   const [lastFetchInfo, setLastFetchInfo] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [selectedRoleFilter, setSelectedRoleFilter] = useState<string | null>(null);
+  const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const [idColumn, setIdColumn] = useState<string>('id');
+  
+  // Opciones de roles para filtro
+  const roleOptions = ['Administrador', 'Usuario', 'Técnico'];
 
   useEffect(() => {
     fetchUsers();
@@ -38,6 +44,16 @@ export default function CRUDUsuarios() {
         .limit(100);
 
       console.log('Primer usuario:', usuariosData?.[0]);
+
+      // Detectar dinámicamente cuál es la columna ID
+      if (usuariosData && usuariosData.length > 0) {
+        const first = usuariosData[0];
+        const possibleId = ['id', 'id_usuario', 'id_user', 'uid', 'user_id'];
+        const found = possibleId.find((k) => Object.prototype.hasOwnProperty.call(first, k));
+        const usedId = found || (Object.keys(first).find((k) => k.toLowerCase().includes('id')) || 'id');
+        setIdColumn(usedId);
+        console.log('ID column detected:', usedId);
+      }
 
       // No necesitamos consultar roles ya que usaremos valores fijos
       const rolesError = null;
@@ -73,6 +89,13 @@ export default function CRUDUsuarios() {
 
       if (usuariosData && Array.isArray(usuariosData)) {
         if (usuariosData.length > 0) {
+          // Detectar dinámicamente cuál es la columna ID para guardarla
+          const first = usuariosData[0];
+          const possibleId = ['id', 'id_usuario', 'id_user', 'uid', 'user_id'];
+          const foundId = possibleId.find((k) => Object.prototype.hasOwnProperty.call(first, k));
+          const detectedIdColumn = foundId || (Object.keys(first).find((k) => k.toLowerCase().includes('id')) || 'id');
+          setIdColumn(detectedIdColumn);
+
           // Mapear usuarios con roles fijos
           const mapped = usuariosData.map((usuario, index) => {
             // Convertir el rol_id a número para buscar en el mapa
@@ -80,14 +103,14 @@ export default function CRUDUsuarios() {
             const rol = rolesMap.get(rolId);
             
             console.log('Debug usuario:', {
-              usuarioId: usuario.id,
+              usuarioId: usuario[detectedIdColumn],
               nombre: usuario.nombre,
               rolId: rolId,
               rolAsignado: rol?.nombre || 'Sin rol'
             });
 
             return {
-              id: String(usuario.id || usuario.user_id || usuario.uid || `temp-${index}`), 
+              id: String(usuario[detectedIdColumn] || usuario.id || usuario.user_id || `temp-${index}`), 
               name: usuario.nombre || usuario.first_name || usuario.name || '',
               lastName: usuario.apellido || usuario.last_name || usuario.apellidos || '',
               phone: usuario.telefono || usuario.phone || usuario.tel || '',
@@ -136,7 +159,7 @@ export default function CRUDUsuarios() {
       const { error } = await supabase
         .from('usuarios')
         .delete()
-        .eq('id', id);
+        .eq(idColumn, id);
 
       if (error) throw error;
       fetchUsers(); // Refresh the list
@@ -157,9 +180,17 @@ export default function CRUDUsuarios() {
     );
   };
 
-  const filteredUsers = users.filter(user =>
-    user.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filtrar usuarios por búsqueda y por rol seleccionado
+  const filteredUsers = users.filter(user => {
+    const matchesSearch = user.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesRole = selectedRoleFilter ? user.role === selectedRoleFilter : true;
+    return matchesSearch && matchesRole;
+  });
+
+  // Obtener etiqueta para el botón de filtro
+  const getFilterLabel = () => {
+    return selectedRoleFilter ? selectedRoleFilter : 'Todos';
+  };
 
   return (
     <View className="flex-1 bg-white p-4">
@@ -181,7 +212,7 @@ export default function CRUDUsuarios() {
           </TouchableOpacity>
         </View>
         {/* Link hacia el formulario para crear usuario */}
-        <Link href={'/UsuarioForm' as any} asChild>
+        <Link href="/(admin)/UsuarioForm" asChild>
           <TouchableOpacity 
             className="bg-blue-500 rounded-full w-10 h-10 items-center justify-center"
           >
@@ -201,13 +232,13 @@ export default function CRUDUsuarios() {
         />
       </View>
 
-      {/* Filter Buttons */}
-      <View className="flex-row gap-2 mb-4">
-        <TouchableOpacity className="bg-blue-100 px-4 py-2 rounded-lg">
-          <Text className="text-blue-500">Ordenar</Text>
-        </TouchableOpacity>
-        <TouchableOpacity className="bg-blue-100 px-4 py-2 rounded-lg">
-          <Text className="text-blue-500">Filtrar</Text>
+      {/* Filter Button */}
+      <View className="mb-4">
+        <TouchableOpacity 
+          className="bg-blue-100 px-4 py-2 rounded-lg"
+          onPress={() => setShowFilterMenu(true)}
+        >
+          <Text className="text-blue-500">Filtrar: {getFilterLabel()}</Text>
         </TouchableOpacity>
       </View>
 
@@ -238,7 +269,7 @@ export default function CRUDUsuarios() {
               </TouchableOpacity>
               <View className="flex-row gap-4">
                 {/* Link hacia el formulario para editar (pasa id como query param) */}
-                <Link href={{ pathname: '/UsuarioForm', params: { id: user.id } } as any} asChild>
+                <Link href={{ pathname: '/(admin)/UsuarioForm', params: { id: user.id } }} asChild>
                   <TouchableOpacity>
                     <Feather name="edit-2" size={20} color="#4B5563" />
                   </TouchableOpacity>
@@ -304,7 +335,7 @@ export default function CRUDUsuarios() {
                   <Text className="text-gray-600">Cerrar</Text>
                 </TouchableOpacity>
                 
-                <Link href={{ pathname: '/UsuarioForm', params: { id: selectedUser.id } } as any} asChild>
+                <Link href={{ pathname: '/(admin)/UsuarioForm', params: { id: selectedUser.id } }} asChild>
                   <TouchableOpacity className="px-4 py-2 rounded-lg bg-blue-500">
                     <Text className="text-white">Editar</Text>
                   </TouchableOpacity>
@@ -314,6 +345,53 @@ export default function CRUDUsuarios() {
           </View>
         </View>
       )}
+
+      {/* Modal de Filtro por Rol */}
+      <Modal
+        visible={showFilterMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowFilterMenu(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} className="items-center justify-center">
+          <View style={{ width: '90%', maxWidth: 360 }} className="bg-white rounded-lg p-6">
+            <Text className="text-lg font-bold mb-4">Filtrar por Rol:</Text>
+
+            {/* Opción: Todos */}
+            <TouchableOpacity
+              className={`p-3 rounded-lg mb-2 ${selectedRoleFilter === null ? 'bg-blue-500' : 'bg-gray-100'}`}
+              onPress={() => {
+                setSelectedRoleFilter(null);
+                setShowFilterMenu(false);
+              }}
+            >
+              <Text className={selectedRoleFilter === null ? 'text-white' : 'text-gray-700'}>Todos</Text>
+            </TouchableOpacity>
+
+            {/* Opciones de roles */}
+            {roleOptions.map((rol) => (
+              <TouchableOpacity
+                key={rol}
+                className={`p-3 rounded-lg mb-2 ${selectedRoleFilter === rol ? 'bg-blue-500' : 'bg-gray-100'}`}
+                onPress={() => {
+                  setSelectedRoleFilter(rol);
+                  setShowFilterMenu(false);
+                }}
+              >
+                <Text className={selectedRoleFilter === rol ? 'text-white' : 'text-gray-700'}>{rol}</Text>
+              </TouchableOpacity>
+            ))}
+
+            {/* Botón Cerrar */}
+            <TouchableOpacity
+              className="bg-gray-200 p-3 rounded-lg mt-4"
+              onPress={() => setShowFilterMenu(false)}
+            >
+              <Text className="text-center text-gray-700 font-medium">Cerrar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
