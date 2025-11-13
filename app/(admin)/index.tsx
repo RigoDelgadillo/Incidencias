@@ -75,7 +75,7 @@ export default function Index() {
           params: { id: item.id_incidencia },
         });
       }}
-      className={`flex-row items-center justify-between bg-white rounded-xl border-l-4 px-4 py-3 shadow-sm my-10 mx-4 ${getPrioridadColor(
+      className={`flex-row items-center justify-between bg-white rounded-xl border-l-4 px-4 py-3 shadow-sm my-4 mx-4 ${getPrioridadColor(
         item.id_prioridad
       )}`}
     >
