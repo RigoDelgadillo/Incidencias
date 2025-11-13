@@ -20,3 +20,4 @@ export default function CustomButton({ onPress, label, color="bg-primary" }: Pro
     </Pressable>
   );
 }
+
