@@ -1,218 +1,236 @@
-import { Link } from "expo-router";
-import React, { useEffect, useState } from "react";
+import DateTimePicker, {
+  AndroidNativeProps,
+  DateTimePickerAndroid,
+} from "@react-native-community/datetimepicker";
+import { useMemo, useState } from "react";
 import {
-  Alert,
   FlatList,
+  Modal,
+  Platform,
   Pressable,
   Text,
-  TextInput,
   View,
 } from "react-native";
 
 import CustomButton from "@/components/CustomButton";
-import { supabase } from "@/utils/supabase";
+import InputForm from "@/components/InputForm";
 
-// Tipos de datos
-type Reporte = {
-  id_incidencia: number;
-  titulo: string;
-  descripcion: string;
-};
+type Technician = { id: string; name: string };
 
-type Tecnico = {
-  id_usuario: string; // UUID
-  nombre: string;
-  apellido: string;
-  id_rol: number;
-};
+export default function asignartecnico() {
+  const [selectedTech, setSelectedTech] = useState<Technician | null>(null);
+  const [deadline, setDeadline] = useState<Date | null>(null);
+  const [showTechModal, setShowTechModal] = useState(false);
+  const [showIOSPicker, setShowIOSPicker] = useState(false); // solo iOS
 
-export default function AsignarTecnico() {
-  const [reportes, setReportes] = useState<Reporte[]>([]);
-  const [tecnicos, setTecnicos] = useState<Tecnico[]>([]);
+  const technicians = useMemo<Technician[]>(
+    () => [
+      { id: "1", name: "Ana López" },
+      { id: "2", name: "Carlos Ruiz" },
+      { id: "3", name: "María Pérez" },
+      { id: "4", name: "Juan Torres" },
+    ],
+    []
+  );
 
-  const [selectedReporteId, setSelectedReporteId] =
-    useState<number | null>(null);
+  const formatDateTime = (d: Date | null) => {
+    if (!d) return "";
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    const DD = pad(d.getDate());
+    const MM = pad(d.getMonth() + 1);
+    const YYYY = d.getFullYear();
+    const hh = pad(d.getHours());
+    const mm = pad(d.getMinutes());
+    return `${DD}/${MM}/${YYYY} ${hh}:${mm}`;
+  };
 
-  const [selectedTecnicoId, setSelectedTecnicoId] =
-    useState<string | null>(null);
+  // --- Apertura de calendario según plataforma ---
+  const openDatePicker = () => {
+    // cierra el modal de técnicos si estuviera abierto para evitar superposición
+    setShowTechModal(false);
 
-  const [notas, setNotas] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  // Cargar listas iniciales
-  useEffect(() => {
-    cargarListas();
-  }, []);
-
-  async function cargarListas() {
-    try {
-      // REPORTES
-      const { data: dataReportes, error: errorReportes } = await supabase
-        .from("incidencias")
-        .select("id_incidencia, titulo, descripcion");
-
-      if (errorReportes) throw errorReportes;
-
-      // USUARIOS → Filtrar técnicos (id_rol = 3)
-      const { data: dataTecnicos, error: errorTecnicos } = await supabase
-        .from("usuarios")
-        .select("id_usuario, nombre, apellido, id_rol");
-
-      if (errorTecnicos) throw errorTecnicos;
-
-      const tecnicosFiltrados =
-        dataTecnicos?.filter((t) => t.id_rol === 3) ?? [];
-
-      setReportes(dataReportes || []);
-      setTecnicos(tecnicosFiltrados);
-    } catch (err) {
-      console.error("Error cargando listas:", err);
-      Alert.alert("Error", "No se pudieron cargar listas.");
-    }
-  }
-
-  async function handleAsignar() {
-    if (!selectedReporteId || !selectedTecnicoId) {
-      Alert.alert("Error", "Selecciona un reporte y un técnico.");
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      // 1️⃣ Obtener un administrador REAL desde la tabla usuarios (id_rol = 1)
-      const {
-        data: admin,
-        error: adminError,
-      } = await supabase
-        .from("usuarios")
-        .select("id_usuario")
-        .eq("id_rol", 1)
-        .maybeSingle(); // toma solo un admin
-
-      if (adminError) throw adminError;
-      if (!admin) {
-        Alert.alert(
-          "Error",
-          "No se encontró un administrador en la tabla usuarios."
-        );
-        setLoading(false);
-        return;
-      }
-
-      const idAdministrador = admin.id_usuario as string;
-
-      // 2️⃣ Insertar asignación usando IDs válidos
-      const { error } = await supabase.from("asignaciones").insert([
-        {
-          id_incidencia: selectedReporteId,
-          id_administrador: idAdministrador, // UUID del admin de la BD
-          id_tecnico: selectedTecnicoId, // UUID del técnico seleccionado
+    if (Platform.OS === "android") {
+      // 1) Abrimos el "date"
+      DateTimePickerAndroid.open({
+        value: deadline ?? new Date(),
+        mode: "date",
+        onChange: (_event, date) => {
+          if (date) {
+            // 2) Luego abrimos el "time"
+            DateTimePickerAndroid.open({
+              value: date,
+              mode: "time",
+              is24Hour: true,
+              onChange: (_event2, dateTime) => {
+                if (dateTime) setDeadline(dateTime);
+              },
+            } as AndroidNativeProps);
+          }
         },
-      ]);
-
-      if (error) throw error;
-
-      Alert.alert("Éxito", "Técnico asignado correctamente.");
-      setNotas("");
-    } catch (err) {
-      console.error("Error al asignar técnico:", err);
-      Alert.alert("Error", "No se pudo asignar el técnico.");
-    } finally {
-      setLoading(false);
+      } as AndroidNativeProps);
+    } else {
+      // iOS: mostramos inline
+      setShowIOSPicker(true);
     }
-  }
-
-  // UI PARA CADA REPORTE
-  const RenderReporte = ({ item }: { item: Reporte }) => {
-    const seleccionado = selectedReporteId === item.id_incidencia;
-
-    return (
-      <Pressable
-        onPress={() => setSelectedReporteId(item.id_incidencia)}
-        className={`p-3 rounded-xl border mb-2 ${
-          seleccionado ? "border-primary bg-[#ffe4e9]" : "border-gray-300"
-        }`}
-      >
-        <Text className="font-Inter-Bold">
-          #{item.id_incidencia} · {item.titulo}
-        </Text>
-        <Text className="text-sm text-gray-600" numberOfLines={2}>
-          {item.descripcion}
-        </Text>
-      </Pressable>
-    );
   };
 
-  // UI PARA CADA TÉCNICO
-  const RenderTecnico = ({ item }: { item: Tecnico }) => {
-    const seleccionado = selectedTecnicoId === item.id_usuario;
-
-    return (
-      <Pressable
-        onPress={() => setSelectedTecnicoId(item.id_usuario)}
-        className={`p-3 rounded-xl border mb-2 ${
-          seleccionado ? "border-primary bg-[#e3ffe4]" : "border-gray-300"
-        }`}
-      >
-        <Text className="font-Inter-Bold">
-          {item.nombre} {item.apellido}
-        </Text>
-      </Pressable>
-    );
-  };
-
-  // ---------- UI FINAL ----------
   return (
-    <View className="mx-auto mt-10 w-[380px]">
-      <View className="flex-row justify-between mb-4">
-        <Link href="/(auth)/login">
-          <Text className="text-2xl">←</Text>
-        </Link>
-        <Text className="text-xl font-Inter-Bold">Asignar técnico</Text>
+    <View className="mx-auto mt-16">
+      {/* Título */}
+      <Text className="text-center text-4xl font-Inter-Bold mb-10">
+        Asignar Tecnico
+      </Text>
+
+      {/* Referencia rápida */}
+      <Text className="text-textGray text-base mb-2 text-left">
+        REFERENCIA RAPIDA DEL REPORTE
+      </Text>
+      <View className="border border-gray-300 rounded-lg p-4 mb-6 w-[380px]">
+        <Text className="text-lg font-Inter-Medium">
+          Falla en el sistema de iluminacion
+        </Text>
+        <Text className="text-textGray text-sm">Reporte #12345</Text>
       </View>
 
-      {/* LISTA DE REPORTES */}
-      <Text className="text-lg font-Inter-Bold mb-2">
-        Seleccionar reporte
+      {/* Selección del técnico */}
+      <Text className="text-textGray text-base mb-2 text-left">
+        SELECCION DEL TECNICO
       </Text>
-      <FlatList
-        data={reportes}
-        renderItem={RenderReporte}
-        keyExtractor={(item) => item.id_incidencia.toString()}
-        style={{ maxHeight: 150 }}
+      <SelectField
+        value={selectedTech?.name ?? ""}
+        placeholder="Seleccionar tecnico"
+        onPress={() => setShowTechModal(true)}
       />
 
-      {/* LISTA DE TÉCNICOS */}
-      <Text className="text-lg font-Inter-Bold mt-4 mb-2">
-        Seleccionar técnico
+      {/* Fecha límite */}
+      <Text className="text-textGray text-base mt-6 mb-2 text-left">
+        DETALLES ADICIONALES Y PLAZOS
       </Text>
-      <FlatList
-        data={tecnicos}
-        renderItem={RenderTecnico}
-        keyExtractor={(item) => item.id_usuario}
-        style={{ maxHeight: 150 }}
+      <DateField
+        value={formatDateTime(deadline)}
+        placeholder="DD/MM/AAAA HH:MM"
+        onPress={openDatePicker}
       />
 
-      {/* NOTAS */}
-      <Text className="text-lg font-Inter-Bold mt-4">Notas (opcional)</Text>
-      <TextInput
-        className="w-full h-28 bg-bgGray rounded-lg px-4 py-2 mt-2"
-        placeholder="Escribe instrucciones para el técnico..."
-        value={notas}
-        onChangeText={setNotas}
-        multiline
-        textAlignVertical="top"
+      {/* iOS inline picker (no lo renderizamos en Android para evitar “colapso”) */}
+      {Platform.OS === "ios" && showIOSPicker && (
+        <View className="w-[380px] bg-white border border-gray-200 rounded-lg mt-3">
+          <DateTimePicker
+            value={deadline ?? new Date()}
+            mode="datetime"
+            display="inline"
+            onChange={(_e, date) => {
+              if (date) setDeadline(date);
+            }}
+          />
+          <Pressable
+            onPress={() => setShowIOSPicker(false)}
+            className="p-3 items-center"
+          >
+            <Text className="text-blue-600 font-Inter-Medium">Listo</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {/* Notas */}
+      <InputForm
+        label="Notas y comentarios (para el tecnico)"
+        placeholder="Añadir instrucciones adicionales..."
       />
 
-      {/* BOTÓN */}
-      <View className="mt-6">
-        <CustomButton
-          label={loading ? "Asignando..." : "Asignar técnico"}
-          onPress={handleAsignar}
-          disabled={loading}
-        />
+      {/* Botones */}
+      <View className="flex-row justify-between mt-10 mb-10 w/[380px] w-[380px]">
+        <View className="flex-1 mr-3">
+          <CustomButton label="Cancelar" />
+        </View>
+        <View className="flex-1">
+          <CustomButton label="Confirmar Asignacion" />
+        </View>
       </View>
+
+      {/* Modal: lista de técnicos */}
+      <Modal transparent animationType="fade" visible={showTechModal}>
+        <Pressable
+          className="flex-1 bg-black/40 items-center justify-center px-6"
+          onPress={() => setShowTechModal(false)}
+        >
+          <View className="w-full max-w-[420px] bg-white rounded-2xl p-4">
+            <Text className="text-lg font-Inter-Bold mb-2">
+              Seleccionar tecnico
+            </Text>
+            <FlatList
+              data={technicians}
+              keyExtractor={(item) => item.id}
+              ItemSeparatorComponent={() => (
+                <View className="h-[1px] bg-gray-200" />
+              )}
+              renderItem={({ item }) => (
+                <Pressable
+                  className="py-3"
+                  onPress={() => {
+                    setSelectedTech(item);
+                    setShowTechModal(false);
+                  }}
+                >
+                  <Text className="text-base">{item.name}</Text>
+                </Pressable>
+              )}
+            />
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
+
+
+function SelectField({
+  value,
+  placeholder,
+  onPress,
+}: {
+  value: string;
+  placeholder: string;
+  onPress: () => void;
+}) {
+  return (
+    <View className="mt-1">
+      <Text className="text-textGray text-lg mb-1">Seleccionar tecnico</Text>
+      <Pressable
+        onPress={onPress}
+        className="w-[380px] h-[50px] bg-bgGray rounded-lg px-5 flex-row items-center justify-between"
+      >
+        <Text className={value ? "text-black" : "text-gray-400"}>
+          {value || placeholder}
+        </Text>
+        <Text className="text-gray-500">▾</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function DateField({
+  value,
+  placeholder,
+  onPress,
+}: {
+  value: string;
+  placeholder: string;
+  onPress: () => void;
+}) {
+  return (
+    <View className="mt-1">
+      <Text className="text-textGray text-lg mb-1">Fecha/Hora Limite</Text>
+      <Pressable
+        onPress={onPress}
+        className="w-[380px] h-[50px] bg-bgGray rounded-lg px-5 flex-row items-center justify-between"
+      >
+        <Text className={value ? "text-black" : "text-gray-400"}>
+          {value || placeholder}
+        </Text>
+        <Text>🗓️</Text>
+      </Pressable>
+    </View>
+  );
+}
+
