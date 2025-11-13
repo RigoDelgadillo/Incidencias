@@ -99,12 +99,14 @@ export default function MyProfile() {
                     Teléfono: {telefono}
                 </Text>
 
-                <View className="w-full mx-auto mt-4 px-5 mb-2 bg-green-300 p-2 rounded-full items-center flex-row gap-2">
-                  <FontAwesome6 name="helhelmet" size={16} color="black" />
+                <View className="w-full mx-auto mt-4 px-5 mb-2 bg-amber-200 p-2 rounded-full items-center flex-row gap-2">
+                  <FontAwesome6 name="wrench" size={16} color="black" />
                   <Text className="text-lg font-Inter-Bold ">
-                    Usuario
+                    Tecnico
                   </Text>
                 </View>
+                
+                    
 
                 <InputForm
                     placeholder="Escribe tu nombre"
