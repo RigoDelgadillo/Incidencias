@@ -1,8 +1,9 @@
 import CustomButton from "@/components/CustomButton";
 import { supabase } from "@/utils/supabase";
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -41,44 +42,54 @@ export default function Index() {
     useState<Incidencia | null>(null);
   // ------------------------------------
 
-  const getIncidencias = async () => {
-    setLoading(true);
-    try {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-      if (userError) throw userError;
-      if (!user) {
-        Alert.alert("Sesión no encontrada", "Por favor inicia sesión nuevamente.");
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("incidencias")
-        // 2. CONSULTA ACTUALIZADA
-        .select(
-          `
-          id_incidencia, 
-          titulo, 
-          descripcion, 
-          id_estado, 
-          fecha_creacion, 
-          id_prioridad,
-          usuarios ( nombre, apellido ) 
-        `
-        )
-        .eq("id_usuario", user.id)
-        .order("fecha_creacion", { ascending: false });
-
-      if (error) throw error;
-      setIncidencias(data || []);
-    } catch (err: any) {
-      Alert.alert("Error", `No se pudieron cargar los reportes: ${err.message}`);
-    } finally {
-      setLoading(false);
+  const getIncidencias = useCallback(async () => {
+  setLoading(true);
+  try {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+    if (userError) throw userError;
+    if (!user) {
+      Alert.alert("Sesión no encontrada", "Por favor inicia sesión nuevamente.");
+      return;
     }
-  };
+
+    const { data, error } = await supabase
+      .from("incidencias")
+      .select(
+        `
+        id_incidencia, 
+        titulo, 
+        descripcion, 
+        id_estado, 
+        fecha_creacion, 
+        id_prioridad,
+        usuarios ( nombre, apellido ) 
+      `
+      )
+      .eq("id_usuario", user.id)
+      .order("fecha_creacion", { ascending: false });
+
+    if (error) throw error;
+    setIncidencias(data || []);
+  } catch (err: any) {
+    Alert.alert("Error", `No se pudieron cargar los reportes: ${err.message}`);
+  } finally {
+    setLoading(false);
+  }
+}, []);
+
+useEffect(() => {
+  getIncidencias();
+}, [getIncidencias]);
+
+useFocusEffect(
+  useCallback(() => {
+    // se ejecuta cada vez que la pantalla vuelve al foco
+    getIncidencias();
+  }, [getIncidencias])
+);
 
   useEffect(() => {
     getIncidencias();
@@ -208,7 +219,7 @@ export default function Index() {
                     Creado por
                   </Text>
                   <Text className="text-lg font-Inter-Regular  mb-2">
-                    {/* Usamos el primer (y único) usuario del arreglo */}
+                    {/* Usamos el primer (y Ãºnico) usuario del arreglo */}
                     {selectedIncidencia.usuarios &&
                     selectedIncidencia.usuarios.length > 0
                       ? `${selectedIncidencia.usuarios[0].nombre} ${selectedIncidencia.usuarios[0].apellido}`
