@@ -10,6 +10,7 @@ import {
 
 import CustomButton from "@/components/CustomButton";
 import { supabase } from "@/utils/supabase";
+import { router } from "expo-router";
 
 // Tipos de datos
 type Reporte = {
@@ -113,6 +114,8 @@ export default function AsignarTecnico() {
       if (error) throw error;
 
       Alert.alert("Éxito", "Técnico asignado correctamente.");
+
+      router.back();
       setNotas("");
     } catch (err) {
       console.error("Error al asignar técnico:", err);
