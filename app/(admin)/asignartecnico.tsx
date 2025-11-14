@@ -1,4 +1,3 @@
-import { Link } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
@@ -39,7 +38,7 @@ export default function AsignarTecnico() {
   const [notas, setNotas] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Cargar listas iniciales
+
   useEffect(() => {
     cargarListas();
   }, []);
@@ -144,7 +143,7 @@ export default function AsignarTecnico() {
     );
   };
 
-  // UI PARA CADA TÉCNICO
+
   const RenderTecnico = ({ item }: { item: Tecnico }) => {
     const seleccionado = selectedTecnicoId === item.id_usuario;
 
@@ -165,12 +164,7 @@ export default function AsignarTecnico() {
   // ---------- UI FINAL ----------
   return (
     <View className="mx-auto mt-10 w-[380px]">
-      <View className="flex-row justify-between mb-4">
-        <Link href="/(auth)/login">
-          <Text className="text-2xl">←</Text>
-        </Link>
-        <Text className="text-xl font-Inter-Bold">Asignar técnico</Text>
-      </View>
+      
 
       {/* LISTA DE REPORTES */}
       <Text className="text-lg font-Inter-Bold mb-2">
