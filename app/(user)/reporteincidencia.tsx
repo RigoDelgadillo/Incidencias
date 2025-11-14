@@ -5,10 +5,9 @@ import React, { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 // --- OPCIONES FIJAS DE PRIORIDAD ---
-// Estos IDs deben coincidir con tu tabla 'prioridades' en Supabase (1=Baja, 2=Medios/Media, 3=Alta).
 const PRIORIDAD_OPCIONES = [
     { id_prioridad: 1, nombre: 'Baja' },
-    { id_prioridad: 2, nombre: 'Media' }, // Ajustado para ser más corto que 'Medios de comunicación' de la BD
+    { id_prioridad: 2, nombre: 'Media' }, 
     { id_prioridad: 3, nombre: 'Alta' },
 ];
 
@@ -17,11 +16,11 @@ const PRIORIDAD_OPCIONES = [
 interface IncidenciaData {
     titulo: string;
     descripcion: string;
-    // Se mantiene null ya que no usamos el ID de un Picker
     id_equipo: null; 
-    // Campo para el texto libre del equipo (la BD AÚN no lo tiene)
     nombre_equipo_manual: string; 
     id_prioridad: number | null;
+    // 💡 NUEVO: Campo para el estado
+    id_estado: number; 
 }
 
 // --- Componente de la Pantalla ---
@@ -33,8 +32,10 @@ export default function ReportarIncidenciaScreen() {
         titulo: '',
         descripcion: '',
         id_equipo: null, 
-        nombre_equipo_manual: '', // Campo de texto libre para Equipo
+        nombre_equipo_manual: '', 
         id_prioridad: null,
+        // 💡 NUEVO: Inicializar id_estado en 1
+        id_estado: 1, 
     });
     
     // 2. Estados de control
@@ -44,7 +45,6 @@ export default function ReportarIncidenciaScreen() {
     const handleChange = (name: keyof IncidenciaData, value: string | number | null) => {
         let processedValue: any = value;
         
-        // Convertir IDs a número solo si el campo es de tipo ID
         if (name === 'id_prioridad' && typeof value === 'string') {
             processedValue = value ? Number(value) : null;
         }
@@ -81,14 +81,15 @@ export default function ReportarIncidenciaScreen() {
             }
 
             // CORRECCIÓN CLAVE: 
-            // Se elimina 'nombre_equipo_manual' de dataToSend para evitar el error PGRST204 
-            // (Columna inexistente en la BD).
+            // Se elimina 'nombre_equipo_manual' para evitar el error PGRST204.
+            // 💡 NUEVO: Se añade id_estado con valor 1.
             const dataToSend = {
                 titulo: formData.titulo,
                 descripcion: formData.descripcion,
                 id_prioridad: formData.id_prioridad,
                 id_usuario: user.id,
-                // 'id_equipo' se omite; se espera que acepte NULL en la BD.
+                // ID de estado fijo: 1 (Reportado/Pendiente)
+                id_estado: 1,
             };
 
             // Insertar la incidencia
@@ -103,7 +104,7 @@ export default function ReportarIncidenciaScreen() {
 
         } catch (err: any) {
             console.error('Error al enviar la incidencia:', err);
-            Alert.alert("Error de envío", `No se pudo registrar la incidencia: ${err.message}. Revise si la columna id_equipo en la tabla incidencias permite NULL o si tiene problemas de RLS.`);
+            Alert.alert("Error de envío", `No se pudo registrar la incidencia: ${err.message}. Revise si la columna id_equipo o id_estado en la tabla incidencias permite NULL o si tiene problemas de RLS.`);
         } finally {
             setEnviando(false);
         }
@@ -184,7 +185,7 @@ export default function ReportarIncidenciaScreen() {
                 </View>
 
                 <Text style={styles.noteText}>
-                    *La fecha de creación y el estado inicial se registrarán automáticamente.
+                    *El estado inicial se ha configurado automáticamente como **Reportado (1)**.
                 </Text>
             </ScrollView>
             
