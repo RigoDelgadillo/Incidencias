@@ -1,31 +1,39 @@
+// MODIFICADO: Eliminamos 'useNavigation'
+import IncidenciaDetalleModal from "@/components/IncidenciaDetalleModal";
 import { supabase } from "@/utils/supabase";
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
-import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, FlatList, Text, TouchableOpacity, View } from "react-native";
-
 
 interface Incidencia {
   id_incidencia: number;
   titulo: string;
+  descripcion: string;
   id_estado: number;
   fecha_creacion: string;
   id_prioridad: number;
+  usuarios: {
+    nombre: string;
+    apellido: string;
+  } [] | null;
+  
 }
 
+
 export default function Index() {
-  const navigation = useNavigation();
   const [incidencias, setIncidencias] = useState<Incidencia[]>([]);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
+
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedIncidencia, setSelectedIncidencia] =
+    useState<Incidencia | null>(null);
 
   const getIncidencias = async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from("incidencias")
-        .select("id_incidencia, titulo, id_estado, fecha_creacion, id_prioridad")
+        .select(`id_incidencia, titulo,  descripcion, id_estado, fecha_creacion, id_prioridad, usuarios (nombre, apellido) `)
         .order("fecha_creacion", { ascending: false });
 
       if (error) throw error;
@@ -67,15 +75,20 @@ export default function Index() {
     }
   };
 
+  const handleOpenModal = (incidencia: Incidencia) => {
+    setSelectedIncidencia(incidencia);
+    setModalVisible(true);
+  };
+
+  const handleCloseModal = () => {
+    setModalVisible(false);
+    setSelectedIncidencia(null);
+  };
+
   const renderIncidencia = ({ item }: { item: Incidencia }) => (
     <TouchableOpacity
-      onPress={() => {
-        router.push({
-          pathname: "/(admin)/reportedetalle",
-          params: { id: item.id_incidencia },
-        });
-      }}
-      className={`flex-row items-center justify-between bg-white rounded-xl border-l-4 px-4 py-3 shadow-sm my-10 mx-4 ${getPrioridadColor(
+      onPress={() => handleOpenModal(item)}
+      className={`flex-row items-center justify-between bg-white rounded-xl border-l-4 px-4 py-3 shadow-sm mt-4 mx-4 ${getPrioridadColor(
         item.id_prioridad
       )}`}
     >
@@ -83,7 +96,9 @@ export default function Index() {
         <Text className="text-xl font-semibold text-gray-900" numberOfLines={1}>
           {item.titulo}
         </Text>
-        <Text className="text-sm text-gray-600">{getEstadoTexto(item.id_estado)}</Text>
+        <Text className="text-sm text-gray-600">
+          {getEstadoTexto(item.id_estado)}
+        </Text>
       </View>
       <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
     </TouchableOpacity>
@@ -92,7 +107,9 @@ export default function Index() {
   return (
     <View className="flex-1 bg-gray-50">
       {loading ? (
-        <Text className="text-center text-gray-600 mt-10">Cargando reportes...</Text>
+        <Text className="text-center text-gray-600 mt-10">
+          Cargando reportes...
+        </Text>
       ) : incidencias.length === 0 ? (
         <Text className="text-center text-gray-600 mt-10">
           No hay reportes registrados
@@ -106,6 +123,11 @@ export default function Index() {
           showsVerticalScrollIndicator={false}
         />
       )}
+      <IncidenciaDetalleModal
+        visible={modalVisible}
+        incidencia={selectedIncidencia}
+        onClose={handleCloseModal}
+      />
     </View>
   );
 }
