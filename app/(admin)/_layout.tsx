@@ -63,6 +63,34 @@ const AdminLayout = () => {
               drawerItemStyle: { display: 'none' },
             }}
           />
+          <Drawer.Screen
+        name="myProfile"
+        options={{
+          drawerLabel: "Mi perfil",
+          headerTitle: () => <CustomHeaderTitleDrawer 
+          title="Mi perfil"
+          />,
+          headerShown: true,
+        }}
+      />
+          <Drawer.Screen
+            name="UsuarioForm"
+            options={{
+              drawerItemStyle: { display: 'none' },
+            }}
+          />
+          <Drawer.Screen
+            name="CRUDcategorias"
+            options={{
+              drawerItemStyle: { display: 'none' },
+            }}
+          />
+          <Drawer.Screen
+            name="CRUDequipos"
+            options={{
+              drawerItemStyle: { display: 'none' },
+            }}
+          />
     </Drawer>
   )
 }

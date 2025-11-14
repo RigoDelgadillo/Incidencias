@@ -1,46 +1,74 @@
 import CustomButton from "@/components/CustomButton";
 import { supabase } from "@/utils/supabase";
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native"; // Necesario para el listener 'focus'
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, FlatList, Text, TouchableOpacity, View } from "react-native";
+import {
+  Alert,
+  FlatList,
+  Modal, // <-- NUEVO
+  Pressable, // <-- NUEVO
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
-// --- Definición de la Interfaz ---
+// 1. INTERFAZ ACTUALIZADA
 interface Incidencia {
   id_incidencia: number;
   titulo: string;
+  descripcion: string; // <-- NUEVO
   id_estado: number;
   fecha_creacion: string;
   id_prioridad: number;
-  id_usuario: string; 
+  // id_usuario: string; // <-- Reemplazado por el objeto 'usuarios'
+  usuarios: { // <-- NUEVO
+    nombre: string;
+    apellido: string;
+  }[] | null;
 }
 
-// --- Componente Principal ---
 export default function Index() {
-  // Asegúrate de usar useNavigation si quieres que la lista se refresque al volver a ella
-  const navigation = useNavigation(); 
+  // ELIMINADO: navigation (no se usa)
   const [incidencias, setIncidencias] = useState<Incidencia[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  // Función para cargar las incidencias del usuario desde Supabase
+  // --- NUEVO: Estado para el modal ---
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedIncidencia, setSelectedIncidencia] =
+    useState<Incidencia | null>(null);
+  // ------------------------------------
+
   const getIncidencias = async () => {
     setLoading(true);
     try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
       if (userError) throw userError;
       if (!user) {
         Alert.alert("Sesión no encontrada", "Por favor inicia sesión nuevamente.");
-        // Opcional: router.replace('/(auth)/login'); 
         return;
       }
 
-      // Obtener las incidencias filtradas por id_usuario
       const { data, error } = await supabase
         .from("incidencias")
-        .select("id_incidencia, titulo, id_estado, fecha_creacion, id_prioridad, id_usuario")
-        .eq("id_usuario", user.id) 
+        // 2. CONSULTA ACTUALIZADA
+        .select(
+          `
+          id_incidencia, 
+          titulo, 
+          descripcion, 
+          id_estado, 
+          fecha_creacion, 
+          id_prioridad,
+          usuarios ( nombre, apellido ) 
+        `
+        )
+        .eq("id_usuario", user.id)
         .order("fecha_creacion", { ascending: false });
 
       if (error) throw error;
@@ -52,18 +80,12 @@ export default function Index() {
     }
   };
 
-  // 🔄 SOLUCIÓN: Usamos el listener 'focus' para refrescar la lista
   useEffect(() => {
-    // Al añadir el listener, debemos devolver una función de limpieza (cleanup function)
-    const unsubscribe = navigation.addListener('focus', () => {
-      getIncidencias();
-    });
-    
-    // La función de limpieza asegura que el listener se remueva cuando el componente se desmonte
-    return unsubscribe;
-  }, [navigation]); // navigation es la dependencia
+    getIncidencias();
+  }, []);
 
   const getPrioridadColor = (id_prioridad: number) => {
+    // ... (tu función se mantiene igual)
     switch (id_prioridad) {
       case 1:
         return "border-green-500";
@@ -77,6 +99,7 @@ export default function Index() {
   };
 
   const getEstadoTexto = (id_estado: number) => {
+    // ... (tu función se mantiene igual)
     switch (id_estado) {
       case 1:
         return "Nuevo";
@@ -89,17 +112,24 @@ export default function Index() {
     }
   };
 
-  // Renderiza cada elemento de la lista
+  // --- NUEVO: Funciones para manejar el modal ---
+  const handleOpenModal = (incidencia: Incidencia) => {
+    setSelectedIncidencia(incidencia);
+    setModalVisible(true);
+  };
+
+  const handleCloseModal = () => {
+    setModalVisible(false);
+    setSelectedIncidencia(null); // Limpiamos la data al cerrar
+  };
+  // ---------------------------------------------
+
   const renderIncidencia = ({ item }: { item: Incidencia }) => (
     <TouchableOpacity
-      onPress={() => {
-        router.push({
-          pathname: "/(user)/reportedetalle",
-          params: { id: item.id_incidencia },
-        });
-      }}
-      // Ajuste de margen para evitar que se vea demasiado grande
-      className={`flex-row items-center justify-between bg-white rounded-xl border-l-4 px-4 py-3 shadow-sm my-2 mx-4 ${getPrioridadColor(
+      // 3. ONPRESS ACTUALIZADO
+      onPress={() => handleOpenModal(item)}
+      // (Cambié my-10 por mt-4, my-10 era mucho espacio)
+      className={`flex-row items-center justify-between bg-white rounded-xl border-l-4 px-4 py-3 shadow-sm mt-4 mx-4 ${getPrioridadColor(
         item.id_prioridad
       )}`}
     >
@@ -107,21 +137,20 @@ export default function Index() {
         <Text className="text-xl font-semibold text-gray-900" numberOfLines={1}>
           {item.titulo}
         </Text>
-        <Text className="text-base text-gray-600">Estado: {getEstadoTexto(item.id_estado)}</Text>
-        <Text className="text-sm text-gray-500">
-            Fecha: {new Date(item.fecha_creacion).toLocaleDateString()}
+        <Text className="text-base text-gray-600">
+          {getEstadoTexto(item.id_estado)}
         </Text>
       </View>
       <Ionicons name="chevron-forward" size={22} color="#9CA3AF" />
     </TouchableOpacity>
   );
 
-  // --- Retorno del componente (JSX) ---
   return (
     <View className="flex-1 bg-gray-50">
-      {/* Muestra mensajes de estado de carga o vacío */}
       {loading ? (
-        <Text className="text-center text-gray-600 mt-10">Cargando tus reportes...</Text>
+        <Text className="text-center text-gray-600 mt-10">
+          Cargando tus reportes...
+        </Text>
       ) : incidencias.length === 0 ? (
         <Text className="text-center text-gray-600 mt-10">
           No has registrado ningún reporte todavía
@@ -131,18 +160,89 @@ export default function Index() {
           data={incidencias}
           renderItem={renderIncidencia}
           keyExtractor={(item) => item.id_incidencia.toString()}
-          contentContainerStyle={{ paddingBottom: 100, paddingTop: 10 }}
+          contentContainerStyle={{ paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
         />
       )}
 
-      {/* Botón flotante para crear nuevo reporte */}
       <View className="absolute bottom-6 left-4 right-4">
         <CustomButton
           label="Crear nuevo reporte"
-          onPress={() => router.push("/reporteincidencia")}
+          // 4. RUTA DE BOTÓN CORREGIDA (asumiendo)
+          onPress={() => router.push("/(user)/reporteincidencia")}
         />
       </View>
+
+      {/* --- 5. MODAL INTEGRADO --- */}
+      {/* Solo renderizamos el modal si hay una incidencia seleccionada */}
+      {selectedIncidencia && (
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={modalVisible}
+          onRequestClose={handleCloseModal}
+        >
+          <Pressable
+            className="flex-1 justify-center items-center bg-black/50 p-4"
+            onPress={handleCloseModal} // Cierra al tocar fondo
+          >
+            <Pressable
+              className="bg-white rounded-2xl p-6 shadow-xl w-full max-w-md max-h-[80%]" // max-h para que no sea muy alto
+              onPress={() => {}} // Evita cierre al tocar modal
+            >
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <View className="space-y-2">
+                  <Text
+                    className="text-3xl text-center font-Inter-Bold text-gray-800 mb-5"
+                    numberOfLines={3}
+                  >
+                    {selectedIncidencia.titulo}
+                  </Text>
+                  <Text className="text-lg text-gray-700 font-Inter-Bold">
+                    Descripcion
+                  </Text>
+                  <Text className="text-lg font-Inter-Regular  mb-2">
+                    {selectedIncidencia.descripcion}
+                  </Text>
+                  <Text className="text-lg text-gray-700 font-Inter-Bold">
+                    Creado por
+                  </Text>
+                  <Text className="text-lg font-Inter-Regular  mb-2">
+                    {/* Usamos el primer (y único) usuario del arreglo */}
+                    {selectedIncidencia.usuarios &&
+                    selectedIncidencia.usuarios.length > 0
+                      ? `${selectedIncidencia.usuarios[0].nombre} ${selectedIncidencia.usuarios[0].apellido}`
+                      : "Usuario desconocido"}
+                  </Text>
+                  <Text className="text-lg text-gray-700 font-Inter-Bold">
+                    Fecha de Creacion
+                  </Text>
+                  <Text className="text-lg font-Inter-Regular  mb-2">
+                    {new Date(
+                      selectedIncidencia.fecha_creacion
+                    ).toLocaleString("es-ES")}
+                  </Text>
+                  <Text className="text-lg text-gray-700 font-Inter-Bold">
+                    Estado
+                  </Text>
+                  <Text className="text-lg font-Inter-Regular  mb-2">
+                    {getEstadoTexto(selectedIncidencia.id_estado)}
+                  </Text>
+                  
+
+                  <CustomButton
+                    label="Cerrar"
+                    color="bg-white"
+                    onPress={handleCloseModal}
+                    textColor="text-gray-800"
+                    borderColor="b-slate-800 border"
+                  />
+                </View>
+              </ScrollView>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
     </View>
   );
 }
