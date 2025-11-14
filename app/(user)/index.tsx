@@ -66,11 +66,11 @@ export default function Index() {
   const getPrioridadColor = (id_prioridad: number) => {
     switch (id_prioridad) {
       case 1:
-        return "border-red-500";
+        return "border-green-500";
       case 2:
         return "border-yellow-400";
       case 3:
-        return "border-green-500";
+        return "border-red-500";
       default:
         return "border-gray-300";
     }
