@@ -4,23 +4,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Alert, SafeAreaView, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
-// Función para generar UUID v4. Necesaria para la inserción directa.
-const generateUUID = () => {
-    const chars = '0123456789abcdef'.split('');
-    const uuid: string[] = [];
-    let rnd = Math.random;
-    let r;
-    uuid[8] = uuid[13] = uuid[18] = uuid[23] = '-';
-    uuid[14] = '4';
-
-    for (let i = 0; i < 36; i++) {
-        if (!uuid[i]) {
-            r = Math.floor(rnd() * 16);
-            uuid[i] = chars[i === 19 ? (r & 0x3) | 0x8 : r];
-        }
-    }
-    return uuid.join('');
-};
+// La función generateUUID se ELIMINA ya que la BD debe gestionar el ID,
+// especialmente si el error de Foreign Key indica que el ID debe venir de auth.users.
 
 interface UsuarioFormData {
     nombre: string;
@@ -131,8 +116,8 @@ export default function UsuarioForm() {
             const possibleEmailColumns = ['correo', 'email', 'mail'];
 
             let rolColumnName = 'rol_id';
-            let idColumnName = 'id_usuario';
             let emailColumnName = 'correo';
+            // idColumnName ya se usa en loadUser y update, no es necesario para la inserción si BD genera ID
 
             const { data: sampleData } = await supabase
                 .from('usuarios')
@@ -142,10 +127,7 @@ export default function UsuarioForm() {
             if (sampleData && sampleData.length > 0) {
                 const foundRol = possibleRolColumns.find((col) => Object.prototype.hasOwnProperty.call(sampleData[0], col));
                 if (foundRol) rolColumnName = foundRol;
-
-                const foundId = possibleIdColumns.find((col) => Object.prototype.hasOwnProperty.call(sampleData[0], col));
-                if (foundId) idColumnName = foundId;
-
+                
                 const foundEmail = possibleEmailColumns.find((col) => Object.prototype.hasOwnProperty.call(sampleData[0], col));
                 if (foundEmail) emailColumnName = foundEmail;
             }
@@ -161,7 +143,7 @@ export default function UsuarioForm() {
 
 
             if (id) {
-                // --- 1. ACTUALIZAR USUARIO EXISTENTE (Directo en tabla) ---
+                // --- 1. ACTUALIZAR USUARIO EXISTENTE ---
                 let updated = false;
                 let error: any = null;
 
@@ -178,21 +160,28 @@ export default function UsuarioForm() {
                     error = err;
                 }
 
-                if (!updated) throw new Error(`Error al actualizar perfil: ${error.message}`);
+                if (!updated) throw new Error(`Error al actualizar perfil: ${error?.message || 'Columna ID no encontrada para actualización.'}`);
                 Alert.alert('Éxito', 'Usuario actualizado correctamente');
 
             } else {
-                // --- 2. CREAR NUEVO USUARIO (Directo en tabla con UUID generado) ---
+                // --- 2. CREAR NUEVO USUARIO (Dejando que la BD asigne el ID) ---
                 
-                // Generar UUID y asignarlo a la columna ID
-                dataToSave[idColumnName] = generateUUID();
-                console.log(`Creando usuario con ID: ${dataToSave[idColumnName]}`);
-
-                const { error } = await supabase
+                // NOTA IMPORTANTE: Si la columna ID en 'usuarios' tiene una CLAVE FORÁNEA a 'auth.users(id)',
+                // este intento de inserción fallará con el mismo error.
+                // La solución en la BD es ELIMINAR esa clave foránea si quieres crear perfiles
+                // que no estén vinculados a un usuario de autenticación de Supabase.
+                
+                const { error, data: insertedData } = await supabase
                     .from('usuarios')
-                    .insert(dataToSave);
+                    .insert(dataToSave)
+                    .select(); // Se agrega .select() para obtener el registro insertado
 
-                if (error) throw new Error(`Error al crear perfil: ${error.message}`);
+                if (error) {
+                    console.error('Error al crear perfil (DB):', error);
+                    // El error original "violates foreign key constraint" es MUY PROBABLE que ocurra aquí.
+                    // Si ocurre, se debe a la configuración de la BD.
+                    throw new Error(`Error al crear perfil: ${error.message}. **Revisa la configuración de clave foránea en la tabla 'usuarios'.**`);
+                }
 
                 Alert.alert('Éxito', 'Usuario creado correctamente.');
             }

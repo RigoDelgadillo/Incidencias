@@ -1,88 +1,96 @@
 import { useAuth } from '@/providers/AuthProvider';
 import { supabase } from "@/utils/supabase";
 import { Feather } from '@expo/vector-icons';
-import { Link, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useState } from 'react';
-// ¡Importaciones críticas para la compilación! Se incluye 'TextInput'
-import { Alert, Modal, RefreshControl, SafeAreaView, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
+import { Picker } from '@react-native-picker/picker';
+import { Alert, Modal, Platform, RefreshControl, SafeAreaView, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+
+// Interfaz simplificada para Equipos
 interface Equipment {
-  id: string;
-  name: string; // nombre
-  type?: string; // tipo
-  status?: string; // estado - Contiene el ID numérico del estado
-  location?: string; // ubicacion
-  created_at?: string; // para ordenamiento por fecha
+  id: string; // Corresponde a la columna 'id_equipo'
+  name: string; // nombre del equipo
+  type: string; // Corresponde a la columna 'id_categoria'
 }
 
-interface Estado {
-  id_e: number;
-  nombre: string;
+// Interfaz para Categoría
+interface Category {
+  id: string; // id_categoria
+  name: string; // nombre de la categoría
 }
+
+// *** CONFIGURACIÓN FINAL BASADA EN TU IMAGEN DE SUPABASE ***
+const EQUIPMENT_ID_COLUMN = 'id_equipo'; // La PK en tu tabla equipos
+const EQUIPMENT_CATEGORY_COLUMN = 'id_categoria'; // La FK en tu tabla equipos
 
 export default function CRUDequipos() {
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [equipmentTypes, setEquipmentTypes] = useState<string[]>([]);
-  const [selectedType, setSelectedType] = useState<string | null>(null);
   const { role } = useAuth();
-  const [sortOption, setSortOption] = useState<'A-Z' | 'Z-A' | 'oldest' | 'newest'>('A-Z');
-  const [showSortMenu, setShowSortMenu] = useState(false);
-  const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null);
-  const [isModalVisible, setIsModalVisible] = useState(false);
-  const [estadosMap, setEstadosMap] = useState<Map<number, string>>(new Map()); 
 
-  // Función para obtener todos los estados y guardarlos en un mapa
-  const fetchEstados = async () => {
+  // --- ESTADOS PARA MODAL DE CREAR/EDITAR ---
+  const [modalVisible, setModalVisible] = useState(false);
+  const [formName, setFormName] = useState('');
+  const [formCategory, setFormCategory] = useState<string>('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  
+  // Lista y Mapa de categorías
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoryMap, setCategoryMap] = useState<Map<string, string>>(new Map());
+  // ---------------------------------------------------
+
+  // 1. Fetch Categorías
+  const fetchCategories = async () => {
     try {
-      // Consulta con columnas 'id_e' y 'nombre' (coincide con tu imagen)
-      const { data, error } = await supabase.from('estados').select('id_e, nombre');
+      const { data, error } = await supabase.from('categorias').select('id_categoria, nombre');
       if (error) throw error;
       
-      const map = new Map<number, string>();
+      const map = new Map<string, string>();
+      const mappedCategories: Category[] = [];
+
       if (data && Array.isArray(data)) {
-        data.forEach((e: any) => {
-          // Usamos Number(e.id_e) para asegurar que la clave sea numérica
-          const id = Number(e.id_e); 
-          const nombre = e.nombre || '';
-          if (!isNaN(id) && nombre) {
+        data.forEach((c: any) => {
+          const id = String(c.id_categoria); 
+          const nombre = c.nombre || '';
+          if (id && nombre) {
             map.set(id, nombre);
+            mappedCategories.push({ id, name: nombre });
           }
         });
       }
-      setEstadosMap(map);
+      setCategories(mappedCategories);
+      setCategoryMap(map);
     } catch (err) {
-      console.error('Error fetching estados:', err);
+      console.error('Error fetching categories:', err);
     }
   };
 
+  // 2. Fetch Equipos (Usando 'id_equipo' y 'id_categoria')
   const fetchEquipment = async () => {
     setLoading(true);
     try {
+      // Se usan las constantes para el SELECT
       const { data, error } = await supabase
         .from('equipos')
-        .select('*')
+        .select(`${EQUIPMENT_ID_COLUMN}, nombre, ${EQUIPMENT_CATEGORY_COLUMN}`) 
         .limit(200);
 
       if (error) throw error;
       
       if (data) {
-        const mapped = data.map((d: any) => ({
-          id: String(d.id),
-          name: d.nombre || d.name || '',
-          type: d.tipo || d.type || '',
-          // Lee el ID de la columna 'estado'
-          status: d.estado !== undefined && d.estado !== null ? String(d.estado) : '', 
-          location: d.ubicacion || d.location || '',
-          created_at: d.created_at || d.fecha_creacion || '',
+        const mapped: Equipment[] = data.map((d: any) => ({
+          // Mapeamos el ID real de la base de datos a 'id' de la interfaz
+          id: String(d[EQUIPMENT_ID_COLUMN]), 
+          name: d.nombre || '',
+          // Mapeamos la categoría real de la base de datos a 'type' de la interfaz
+          type: String(d[EQUIPMENT_CATEGORY_COLUMN] || ''),
         }));
         setEquipment(mapped);
-        
-        // Extraer tipos únicos para el filtro
-        const tipos = Array.from(new Set(mapped.map((m: any) => (m.type || '').toString()).filter(Boolean)));
-        setEquipmentTypes(tipos);
+      } else {
+        setEquipment([]);
       }
     } catch (error) {
       console.error('Error fetching equipment:', error);
@@ -92,28 +100,88 @@ export default function CRUDequipos() {
     }
   };
 
-  // 🔄 useFocusEffect para refrescar datos al entrar a la pantalla
   useFocusEffect(
     useCallback(() => {
-      // 1. Cargamos estados
-      fetchEstados().then(() => {
-        // 2. Cargamos equipos solo después de tener los estados
+      fetchCategories().then(() => {
         fetchEquipment();
       });
     }, [])
   );
-  
-  // --- Funciones reincorporadas para que compile ---
 
+  const resolveCategoryLabel = (typeId: string): string => {
+    return categoryMap.get(typeId) || 'Sin Categoría';
+  };
+
+  // --- Funciones del Modal CRUD ---
+
+  const openCreateModal = () => {
+    setEditingId(null);
+    setFormName('');
+    setFormCategory(categories[0]?.id || ''); 
+    setModalVisible(true);
+  };
+  
+  const openEditModal = (item: Equipment) => {
+    setEditingId(item.id);
+    setFormName(item.name);
+    const initialCategory = item.type && categoryMap.has(item.type) ? item.type : (categories[0]?.id || '');
+    setFormCategory(initialCategory); 
+    setModalVisible(true);
+  };
+  
+  // Guardar (Crear/Editar)
+  const handleSave = async () => {
+    if (!formName.trim() || !formCategory) { 
+      Alert.alert('Validación', 'El nombre y la categoría son requeridos'); 
+      return; 
+    }
+
+    setLoading(true);
+    try {
+      // Creamos el payload dinámicamente usando las constantes
+      const payload: { [key: string]: any } = { 
+        nombre: formName.trim(),
+      };
+      payload[EQUIPMENT_CATEGORY_COLUMN] = formCategory ? Number(formCategory) : null; 
+
+      if (editingId) {
+        // ACTUALIZACIÓN: Usamos EQUIPMENT_ID_COLUMN para la condición .eq()
+        const { error } = await supabase
+          .from('equipos')
+          .update(payload)
+          .eq(EQUIPMENT_ID_COLUMN, editingId); 
+        if (error) throw error;
+        Alert.alert('Éxito', 'Equipo actualizado correctamente.');
+      } else {
+        // CREACIÓN
+        const { error } = await supabase
+          .from('equipos')
+          .insert(payload);
+        if (error) throw error;
+        Alert.alert('Éxito', 'Equipo creado correctamente.');
+      }
+      
+      setModalVisible(false);
+      fetchEquipment(); 
+    } catch (err) {
+      console.error('Error saving equipment:', err);
+      Alert.alert('Error', 'No se pudo guardar el equipo. Verifique los nombres de las columnas: id_equipo y id_categoria.');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
   const handleDelete = async (id: string) => {
     setLoading(true);
     try {
+      // Eliminación: Usamos EQUIPMENT_ID_COLUMN para la condición .eq()
       const { error } = await supabase
         .from('equipos')
         .delete()
-        .eq('id', id);
+        .eq(EQUIPMENT_ID_COLUMN, id);
 
       if (error) throw error;
+      Alert.alert('Éxito', 'Equipo eliminado correctamente.');
       await fetchEquipment();
     } catch (error) {
       console.error('Error deleting equipment:', error);
@@ -136,173 +204,74 @@ export default function CRUDequipos() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchEstados();
+    await fetchCategories();
     await fetchEquipment();
     setRefreshing(false);
   }, []);
 
-  const sortEquipment = (items: Equipment[]) => {
-    const sorted = [...items];
-    
-    if (sortOption === 'A-Z') {
-      sorted.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-    } else if (sortOption === 'Z-A') {
-      sorted.sort((a, b) => (b.name || '').localeCompare(a.name || ''));
-    } else if (sortOption === 'oldest') {
-      sorted.sort((a, b) => {
-        const dateA = new Date(a.created_at || 0).getTime();
-        const dateB = new Date(b.created_at || 0).getTime();
-        return dateA - dateB;
-      });
-    } else if (sortOption === 'newest') {
-      sorted.sort((a, b) => {
-        const dateA = new Date(a.created_at || 0).getTime();
-        const dateB = new Date(b.created_at || 0).getTime();
-        return dateB - dateA;
-      });
-    }
-    
-    return sorted;
-  };
-
-  const getSortLabel = () => {
-    switch (sortOption) {
-      case 'A-Z':
-        return 'A-Z';
-      case 'Z-A':
-        return 'Z-A';
-      case 'oldest':
-        return 'Más antiguos';
-      case 'newest':
-        return 'Más recientes';
-      default:
-        return 'Ordenar';
-    }
-  };
-  // --- Fin Funciones reincorporadas ---
-  
-  // 🏷️ Resuelve el ID de estado a su nombre legible usando el mapa
-  const resolveEstadoLabel = (status: any) => {
-    if (status === undefined || status === null || status === '') return '-';
-    const asNumber = Number(status);
-    // Busca en el mapa el ID numérico
-    if (!isNaN(asNumber) && estadosMap.has(asNumber)) { 
-      return estadosMap.get(asNumber) || String(status);
-    }
-    // Si no es un id numérico o no está en el mapa, devuelve un guion
-    return '-'; 
-  };
-
-  // Filtrado y Ordenamiento (se asegura de usar el label resuelto para la búsqueda)
+  // Filtrado por nombre de equipo o nombre de categoría
   const filteredEquipment = equipment.filter(item => {
+    const categoryName = resolveCategoryLabel(item.type);
     const matchesSearch =
       item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.type || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.location || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      // Permite buscar por el nombre legible del estado
-      resolveEstadoLabel(item.status).toLowerCase().includes(searchQuery.toLowerCase()); 
-
-    const matchesType = selectedType ? (item.type || '') === selectedType : true;
-
-    return matchesSearch && matchesType;
+      categoryName.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesSearch;
   });
-
-  const sortedAndFilteredEquipment = sortEquipment(filteredEquipment);
-
 
   return (
     <SafeAreaView className="flex-1 bg-white">
       <ScrollView className="flex-1 px-4" refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }>
+        
         {/* Header */}
         <View className="flex-row justify-between items-center mb-2 mt-2">
           <Text className="text-2xl font-bold">Equipos</Text>
-          {/* Solo muestra el botón de añadir si el rol es 1 (Admin) */}
+          {/* Botón de Añadir (solo Admin) */}
           {role === 1 && (
-            <Link href="/(admin)/EquipoForm" asChild>
-              <TouchableOpacity 
-                className="bg-blue-500 rounded-full w-10 h-10 items-center justify-center"
-              >
-                <Feather name="plus" size={24} color="white" />
-              </TouchableOpacity>
-            </Link>
+            <TouchableOpacity 
+              className="bg-blue-500 rounded-full w-10 h-10 items-center justify-center"
+              onPress={openCreateModal}
+            >
+              <Feather name="plus" size={24} color="white" />
+            </TouchableOpacity>
           )}
         </View>
 
-        {/* Search Bar and Sort Button */}
-        <View className="flex-row gap-2 mb-2">
-          <View className="flex-1 flex-row items-center border border-gray-300 rounded-lg p-2">
-            <Feather name="search" size={20} color="gray" />
-            <TextInput // ¡Se requiere el import de TextInput!
-              className="flex-1 ml-2"
-              placeholder="Buscar..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-          </View>
-
-          <TouchableOpacity
-            className="bg-blue-100 px-4 py-2 rounded-lg justify-center"
-            onPress={() => setShowSortMenu(true)}
-          >
-            <Text className="text-blue-500 font-medium text-sm">{getSortLabel()}</Text>
-          </TouchableOpacity>
+        {/* Search Bar */}
+        <View className="flex-row items-center border border-gray-300 rounded-lg p-2 mb-4">
+          <Feather name="search" size={20} color="gray" />
+          <TextInput 
+            className="flex-1 ml-2"
+            placeholder="Buscar por nombre o categoría..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
         </View>
-
-        {/* Filter by Type */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
-          <View className="flex-row items-center space-x-2">
-            {/* Opción para quitar el filtro */}
-            <TouchableOpacity
-              className={`px-3 py-2 rounded-lg ${selectedType === null ? 'bg-blue-500' : 'bg-gray-100'}`}
-              onPress={() => setSelectedType(null)}
-            >
-              <Text className={`${selectedType === null ? 'text-white' : 'text-blue-500'}`}>Todos</Text>
-            </TouchableOpacity>
-
-            {/* Filtros de Tipo */}
-            {equipmentTypes.map((t) => (
-              <TouchableOpacity
-                key={t}
-                className={`px-3 py-2 rounded-lg ${selectedType === t ? 'bg-blue-500' : 'bg-gray-100'}`}
-                onPress={() => setSelectedType(selectedType === t ? null : t)}
-              >
-                <Text className={`${selectedType === t ? 'text-white' : 'text-blue-500'}`}>{t}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
 
         {/* Equipment List */}
         {loading && !refreshing ? (
           <Text className="text-gray-500">Cargando...</Text>
-        ) : sortedAndFilteredEquipment.length === 0 ? (
+        ) : filteredEquipment.length === 0 ? (
           <Text className="text-gray-500">No hay equipos disponibles</Text>
         ) : (
-          sortedAndFilteredEquipment.map((item) => (
+          filteredEquipment.map((item) => (
             <View 
               key={item.id}
               className="flex-row justify-between items-center py-4 border-b border-gray-200"
             >
-              <TouchableOpacity className="flex-1" onPress={() => { setSelectedEquipment(item); setIsModalVisible(true); }}>
+              <View className="flex-1">
                 <Text className="text-lg font-medium">{item.name}</Text>
-                <Text className="text-gray-500">{item.type}</Text>
-                {/* 🎯 Muestra el nombre legible del estado: Nuevo, En proceso, Resuelto */}
-                <Text className="text-gray-500">Estado: **{resolveEstadoLabel(item.status)}**</Text> 
-                {item.location && (
-                  <Text className="text-gray-500">Ubicación: {item.location}</Text>
-                )}
-              </TouchableOpacity>
+                {/* Muestra el nombre legible de la categoría */}
+                <Text className="text-gray-500">Categoría: **{resolveCategoryLabel(item.type)}**</Text> 
+              </View>
               <View className="flex-row gap-4">
-                {/* Solo muestra los botones de edición y eliminación si el rol es 1 (Admin) */}
+                {/* Botones de acción (solo Admin) */}
                 {role === 1 && (
                   <>
-                    <Link href={{ pathname: '/(admin)/EquipoForm', params: { id: item.id } }} asChild>
-                      <TouchableOpacity>
-                        <Feather name="edit-2" size={20} color="#4B5563" />
-                      </TouchableOpacity>
-                    </Link>
+                    <TouchableOpacity onPress={() => openEditModal(item)}>
+                      <Feather name="edit-2" size={20} color="#4B5563" />
+                    </TouchableOpacity>
                     <TouchableOpacity onPress={() => confirmDelete(item.id, item.name)}>
                       <Feather name="trash-2" size={20} color="#4B5563" />
                     </TouchableOpacity>
@@ -312,107 +281,67 @@ export default function CRUDequipos() {
             </View>
           ))
         )}
-
-        {/* Sort Modal */}
-        <Modal
-          visible={showSortMenu}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setShowSortMenu(false)}
-        >
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} className="items-center justify-center">
-            <View style={{ width: '90%', maxWidth: 360 }} className="bg-white rounded-lg p-6">
-              <Text className="text-lg font-bold mb-4">Ordenar por:</Text>
-
-              <TouchableOpacity
-                className={`p-3 rounded-lg mb-2 ${sortOption === 'A-Z' ? 'bg-blue-500' : 'bg-gray-100'}`}
-                onPress={() => {
-                  setSortOption('A-Z');
-                  setShowSortMenu(false);
-                }}
-              >
-                <Text className={sortOption === 'A-Z' ? 'text-white' : 'text-gray-700'}>A - Z</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                className={`p-3 rounded-lg mb-2 ${sortOption === 'Z-A' ? 'bg-blue-500' : 'bg-gray-100'}`}
-                onPress={() => {
-                  setSortOption('Z-A');
-                  setShowSortMenu(false);
-                }}
-              >
-                <Text className={sortOption === 'Z-A' ? 'text-white' : 'text-gray-700'}>Z - A</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                className={`p-3 rounded-lg mb-2 ${sortOption === 'oldest' ? 'bg-blue-500' : 'bg-gray-100'}`}
-                onPress={() => {
-                  setSortOption('oldest');
-                  setShowSortMenu(false);
-                }}
-              >
-                <Text className={sortOption === 'oldest' ? 'text-white' : 'text-gray-700'}>Más antiguos</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                className={`p-3 rounded-lg mb-4 ${sortOption === 'newest' ? 'bg-blue-500' : 'bg-gray-100'}`}
-                onPress={() => {
-                  setSortOption('newest');
-                  setShowSortMenu(false);
-                }}
-              >
-                <Text className={sortOption === 'newest' ? 'text-white' : 'text-gray-700'}>Más recientes</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                className="bg-gray-200 p-3 rounded-lg"
-                onPress={() => setShowSortMenu(false)}
-              >
-                <Text className="text-center text-gray-700 font-medium">Cerrar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-
-        {/* Detail modal for selected equipment */}
-        <Modal
-          visible={isModalVisible}
-          transparent
-          animationType="slide"
-          onRequestClose={() => { setIsModalVisible(false); setSelectedEquipment(null); }}
-        >
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} className="items-center justify-center">
-            <View style={{ width: '95%', maxWidth: 520 }} className="bg-white rounded-lg p-6">
-              <Text className="text-xl font-bold mb-2">Detalle del equipo</Text>
-              {selectedEquipment ? (
-                <View>
-                  <Text className="font-medium">Nombre:</Text>
-                  <Text className="mb-2">{selectedEquipment.name}</Text>
-
-                  <Text className="font-medium">Tipo:</Text>
-                  <Text className="mb-2">{selectedEquipment.type}</Text>
-
-                  <Text className="font-medium">Estado:</Text>
-                  {/* Muestra el nombre del estado en el modal de detalle */}
-                  <Text className="mb-2">{resolveEstadoLabel(selectedEquipment.status)}</Text> 
-
-                  <Text className="font-medium">Ubicación:</Text>
-                  <Text className="mb-4">{selectedEquipment.location || '-'}</Text>
-
-                  <TouchableOpacity
-                    className="bg-blue-500 rounded-lg p-3"
-                    onPress={() => { setIsModalVisible(false); setSelectedEquipment(null); }}
-                  >
-                    <Text className="text-center text-white font-medium">Cerrar</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <Text>No hay equipo seleccionado</Text>
-              )}
-            </View>
-          </View>
-        </Modal>
       </ScrollView>
+
+      {/* Modal para crear/editar equipo (Nombre y Categoría) */}
+      <Modal 
+        visible={modalVisible} 
+        transparent 
+        animationType="slide" 
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' }} className="items-center justify-center">
+          <View style={{ width: '95%', maxWidth: 420 }} className="bg-white rounded-lg p-6">
+            <Text className="text-xl font-bold mb-4">{editingId ? 'Editar Equipo' : 'Nuevo Equipo'}</Text>
+
+            {/* Campo Nombre */}
+            <Text className="font-medium mb-2">Nombre *</Text>
+            <TextInput 
+              className="border border-gray-300 rounded-lg p-3 mb-4" 
+              placeholder="Ej: Laptop, Monitor, Impresora" 
+              value={formName} 
+              onChangeText={setFormName} 
+            />
+
+            {/* Selector de Categoría */}
+            <Text className="font-medium mb-2">Categoría *</Text>
+            <View className={`border border-gray-300 rounded-lg mb-6 ${Platform.OS === 'ios' ? 'p-0' : 'p-0'}`}>
+              <Picker
+                selectedValue={formCategory}
+                onValueChange={(itemValue) => setFormCategory(itemValue)}
+                style={{ height: Platform.OS === 'ios' ? 150 : 50, width: '100%' }}
+              >
+                {/* Asegura que haya categorías para mostrar */}
+                {categories.length === 0 ? (
+                  <Picker.Item label="Cargando categorías..." value="" />
+                ) : (
+                  categories.map((cat) => (
+                    <Picker.Item key={cat.id} label={cat.name} value={cat.id} />
+                  ))
+                )}
+              </Picker>
+            </View>
+
+            <View className="flex-row justify-end gap-2">
+              <TouchableOpacity 
+                className="bg-gray-200 px-4 py-2 rounded-lg" 
+                onPress={() => { setModalVisible(false); setEditingId(null); setFormName(''); setFormCategory(''); }}
+              >
+                <Text className="text-gray-700">Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                className={`px-4 py-2 rounded-lg ${loading || categories.length === 0 ? 'bg-gray-400' : 'bg-blue-500'}`} 
+                onPress={handleSave}
+                disabled={loading || categories.length === 0}
+              >
+                <Text className="text-white font-medium">
+                  {loading ? 'Guardando...' : 'Guardar'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
