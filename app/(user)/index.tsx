@@ -1,11 +1,12 @@
 import CustomButton from "@/components/CustomButton";
 import { supabase } from "@/utils/supabase";
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native"; // Necesario para el listener 'focus'
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, FlatList, Text, TouchableOpacity, View } from "react-native";
 
+// --- Definición de la Interfaz ---
 interface Incidencia {
   id_incidencia: number;
   titulo: string;
@@ -15,12 +16,15 @@ interface Incidencia {
   id_usuario: string; 
 }
 
+// --- Componente Principal ---
 export default function Index() {
-  const navigation = useNavigation();
+  // Asegúrate de usar useNavigation si quieres que la lista se refresque al volver a ella
+  const navigation = useNavigation(); 
   const [incidencias, setIncidencias] = useState<Incidencia[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
+  // Función para cargar las incidencias del usuario desde Supabase
   const getIncidencias = async () => {
     setLoading(true);
     try {
@@ -28,9 +32,11 @@ export default function Index() {
       if (userError) throw userError;
       if (!user) {
         Alert.alert("Sesión no encontrada", "Por favor inicia sesión nuevamente.");
+        // Opcional: router.replace('/(auth)/login'); 
         return;
       }
 
+      // Obtener las incidencias filtradas por id_usuario
       const { data, error } = await supabase
         .from("incidencias")
         .select("id_incidencia, titulo, id_estado, fecha_creacion, id_prioridad, id_usuario")
@@ -46,9 +52,16 @@ export default function Index() {
     }
   };
 
+  // 🔄 SOLUCIÓN: Usamos el listener 'focus' para refrescar la lista
   useEffect(() => {
-    getIncidencias();
-  }, []);
+    // Al añadir el listener, debemos devolver una función de limpieza (cleanup function)
+    const unsubscribe = navigation.addListener('focus', () => {
+      getIncidencias();
+    });
+    
+    // La función de limpieza asegura que el listener se remueva cuando el componente se desmonte
+    return unsubscribe;
+  }, [navigation]); // navigation es la dependencia
 
   const getPrioridadColor = (id_prioridad: number) => {
     switch (id_prioridad) {
@@ -76,6 +89,7 @@ export default function Index() {
     }
   };
 
+  // Renderiza cada elemento de la lista
   const renderIncidencia = ({ item }: { item: Incidencia }) => (
     <TouchableOpacity
       onPress={() => {
@@ -84,7 +98,8 @@ export default function Index() {
           params: { id: item.id_incidencia },
         });
       }}
-      className={`flex-row items-center justify-between bg-white rounded-xl border-l-4 px-4 py-3 shadow-sm my-10 mx-4 ${getPrioridadColor(
+      // Ajuste de margen para evitar que se vea demasiado grande
+      className={`flex-row items-center justify-between bg-white rounded-xl border-l-4 px-4 py-3 shadow-sm my-2 mx-4 ${getPrioridadColor(
         item.id_prioridad
       )}`}
     >
@@ -92,14 +107,19 @@ export default function Index() {
         <Text className="text-xl font-semibold text-gray-900" numberOfLines={1}>
           {item.titulo}
         </Text>
-        <Text className="text-base text-gray-600">{getEstadoTexto(item.id_estado)}</Text>
+        <Text className="text-base text-gray-600">Estado: {getEstadoTexto(item.id_estado)}</Text>
+        <Text className="text-sm text-gray-500">
+            Fecha: {new Date(item.fecha_creacion).toLocaleDateString()}
+        </Text>
       </View>
       <Ionicons name="chevron-forward" size={22} color="#9CA3AF" />
     </TouchableOpacity>
   );
 
+  // --- Retorno del componente (JSX) ---
   return (
     <View className="flex-1 bg-gray-50">
+      {/* Muestra mensajes de estado de carga o vacío */}
       {loading ? (
         <Text className="text-center text-gray-600 mt-10">Cargando tus reportes...</Text>
       ) : incidencias.length === 0 ? (
@@ -111,15 +131,16 @@ export default function Index() {
           data={incidencias}
           renderItem={renderIncidencia}
           keyExtractor={(item) => item.id_incidencia.toString()}
-          contentContainerStyle={{ paddingBottom: 100 }}
+          contentContainerStyle={{ paddingBottom: 100, paddingTop: 10 }}
           showsVerticalScrollIndicator={false}
         />
       )}
 
+      {/* Botón flotante para crear nuevo reporte */}
       <View className="absolute bottom-6 left-4 right-4">
         <CustomButton
           label="Crear nuevo reporte"
-          onPress={() => router.push("/(admin)/reportedetalle")}
+          onPress={() => router.push("/reporteincidencia")}
         />
       </View>
     </View>
