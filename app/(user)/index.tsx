@@ -1,14 +1,13 @@
 import CustomButton from "@/components/CustomButton";
 import { supabase } from "@/utils/supabase";
-import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   FlatList,
-  Modal, // <-- NUEVO
-  Pressable, // <-- NUEVO
+  Modal,
+  Pressable,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -19,84 +18,86 @@ import {
 interface Incidencia {
   id_incidencia: number;
   titulo: string;
-  descripcion: string; // <-- NUEVO
+  descripcion: string;
   id_estado: number;
   fecha_creacion: string;
   id_prioridad: number;
-  // id_usuario: string; // <-- Reemplazado por el objeto 'usuarios'
-  usuarios: { // <-- NUEVO
+  usuarios: {
     nombre: string;
     apellido: string;
   }[] | null;
 }
 
 export default function Index() {
-  // ELIMINADO: navigation (no se usa)
   const [incidencias, setIncidencias] = useState<Incidencia[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  // --- NUEVO: Estado para el modal ---
   const [modalVisible, setModalVisible] = useState(false);
-  const [selectedIncidencia, setSelectedIncidencia] =
-    useState<Incidencia | null>(null);
-  // ------------------------------------
+  const [selectedIncidencia, setSelectedIncidencia] = useState<Incidencia | null>(null);
 
   const getIncidencias = useCallback(async () => {
-  setLoading(true);
-  try {
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-    if (userError) throw userError;
-    if (!user) {
-      Alert.alert("Sesión no encontrada", "Por favor inicia sesión nuevamente.");
-      return;
-    }
+    setLoading(true);
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!user) {
+        Alert.alert("Sesión no encontrada", "Por favor inicia sesión nuevamente.");
+        return;
+      }
 
-    const { data, error } = await supabase
-      .from("incidencias")
-      .select(
+      const { data, error } = await supabase
+        .from("incidencias")
+        .select(
+          `
+          id_incidencia, 
+          titulo, 
+          descripcion, 
+          id_estado, 
+          fecha_creacion, 
+          id_prioridad,
+          usuarios ( nombre, apellido ) 
         `
-        id_incidencia, 
-        titulo, 
-        descripcion, 
-        id_estado, 
-        fecha_creacion, 
-        id_prioridad,
-        usuarios ( nombre, apellido ) 
-      `
-      )
-      .eq("id_usuario", user.id)
-      .order("fecha_creacion", { ascending: false });
+        )
+        .eq("id_usuario", user.id)
+        .order("fecha_creacion", { ascending: false });
 
-    if (error) throw error;
-    setIncidencias(data || []);
-  } catch (err: any) {
-    Alert.alert("Error", `No se pudieron cargar los reportes: ${err.message}`);
-  } finally {
-    setLoading(false);
-  }
-}, []);
-
-useEffect(() => {
-  getIncidencias();
-}, [getIncidencias]);
-
-useFocusEffect(
-  useCallback(() => {
-    // se ejecuta cada vez que la pantalla vuelve al foco
-    getIncidencias();
-  }, [getIncidencias])
-);
+      if (error) throw error;
+      setIncidencias(data || []);
+    } catch (err: any) {
+      Alert.alert("Error", `No se pudieron cargar los reportes: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     getIncidencias();
-  }, []);
+  }, [getIncidencias]);
+
+  useFocusEffect(
+    useCallback(() => {
+      getIncidencias();
+    }, [getIncidencias])
+  );
+
+  const getPrioridadTextColor = (id_prioridad: number) => {
+    switch (id_prioridad) {
+      case 1:
+        return "text-green-500"; // Baja
+      case 2:
+        return "text-yellow-500"; // Media (Usamos 600 para mejor contraste)
+      case 3:
+        return "text-red-500"; // Alta
+      default:
+        return "text-gray-300"; // Desconocida
+    }
+  };
 
   const getPrioridadColor = (id_prioridad: number) => {
-    // ... (tu función se mantiene igual)
     switch (id_prioridad) {
       case 1:
         return "border-green-500";
@@ -110,7 +111,6 @@ useFocusEffect(
   };
 
   const getEstadoTexto = (id_estado: number) => {
-    // ... (tu función se mantiene igual)
     switch (id_estado) {
       case 1:
         return "Nuevo";
@@ -123,7 +123,19 @@ useFocusEffect(
     }
   };
 
-  // --- NUEVO: Funciones para manejar el modal ---
+  const getPrioridadTexto = (id_prioridad: number) => {
+    switch (id_prioridad) {
+      case 1:
+        return "Baja";
+      case 2:
+        return "Media";
+      case 3:
+        return "Alta";
+      default:
+        return "Desconocida";
+    }
+  };
+
   const handleOpenModal = (incidencia: Incidencia) => {
     setSelectedIncidencia(incidencia);
     setModalVisible(true);
@@ -131,15 +143,12 @@ useFocusEffect(
 
   const handleCloseModal = () => {
     setModalVisible(false);
-    setSelectedIncidencia(null); // Limpiamos la data al cerrar
+    setSelectedIncidencia(null);
   };
-  // ---------------------------------------------
 
   const renderIncidencia = ({ item }: { item: Incidencia }) => (
     <TouchableOpacity
-      // 3. ONPRESS ACTUALIZADO
       onPress={() => handleOpenModal(item)}
-      // (Cambié my-10 por mt-4, my-10 era mucho espacio)
       className={`flex-row items-center justify-between bg-white rounded-xl border-l-4 px-4 py-3 shadow-sm mt-4 mx-4 ${getPrioridadColor(
         item.id_prioridad
       )}`}
@@ -148,11 +157,15 @@ useFocusEffect(
         <Text className="text-xl font-semibold text-gray-900" numberOfLines={1}>
           {item.titulo}
         </Text>
-        <Text className="text-base text-gray-600">
-          {getEstadoTexto(item.id_estado)}
-        </Text>
+        <View className="flex-row justify-between mt-1">
+          <Text className="text-base text-gray-600">
+            {getEstadoTexto(item.id_estado)}
+          </Text>
+          <Text className={`font-Inter-Bold text-lg ${getPrioridadTextColor(item.id_prioridad)}`}>
+            {getPrioridadTexto(item.id_prioridad)}
+          </Text>
+        </View>
       </View>
-      <Ionicons name="chevron-forward" size={22} color="#9CA3AF" />
     </TouchableOpacity>
   );
 
@@ -179,13 +192,10 @@ useFocusEffect(
       <View className="absolute bottom-6 left-4 right-4">
         <CustomButton
           label="Crear nuevo reporte"
-          // 4. RUTA DE BOTÓN CORREGIDA (asumiendo)
           onPress={() => router.push("/(user)/reporteincidencia")}
         />
       </View>
 
-      {/* --- 5. MODAL INTEGRADO --- */}
-      {/* Solo renderizamos el modal si hay una incidencia seleccionada */}
       {selectedIncidencia && (
         <Modal
           animationType="fade"
@@ -195,11 +205,11 @@ useFocusEffect(
         >
           <Pressable
             className="flex-1 justify-center items-center bg-black/50 p-4"
-            onPress={handleCloseModal} // Cierra al tocar fondo
+            onPress={handleCloseModal}
           >
             <Pressable
-              className="bg-white rounded-2xl p-6 shadow-xl w-full max-w-md max-h-[80%]" // max-h para que no sea muy alto
-              onPress={() => {}} // Evita cierre al tocar modal
+              className="bg-white rounded-2xl p-6 shadow-xl w-full max-w-md max-h-[80%]"
+              onPress={() => {}}
             >
               <ScrollView showsVerticalScrollIndicator={false}>
                 <View className="space-y-2">
@@ -215,23 +225,14 @@ useFocusEffect(
                   <Text className="text-lg font-Inter-Regular  mb-2">
                     {selectedIncidencia.descripcion}
                   </Text>
-                  <Text className="text-lg text-gray-700 font-Inter-Bold">
-                    Creado por
-                  </Text>
-                  <Text className="text-lg font-Inter-Regular  mb-2">
-                    {/* Usamos el primer (y Ãºnico) usuario del arreglo */}
-                    {selectedIncidencia.usuarios &&
-                    selectedIncidencia.usuarios.length > 0
-                      ? `${selectedIncidencia.usuarios[0].nombre} ${selectedIncidencia.usuarios[0].apellido}`
-                      : "Usuario desconocido"}
-                  </Text>
+                  
                   <Text className="text-lg text-gray-700 font-Inter-Bold">
                     Fecha de Creacion
                   </Text>
                   <Text className="text-lg font-Inter-Regular  mb-2">
                     {new Date(
                       selectedIncidencia.fecha_creacion
-                    ).toLocaleString("es-ES")}
+                    ).toLocaleString("es-MX", { timeZone: 'America/Mexico_City'})}
                   </Text>
                   <Text className="text-lg text-gray-700 font-Inter-Bold">
                     Estado
