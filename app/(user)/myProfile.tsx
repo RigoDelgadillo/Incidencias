@@ -7,7 +7,7 @@ import InputForm from "@/components/InputForm";
 
 import { supabase } from "@/utils/supabase";
 
-import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
 
 export default function MyProfile() {
     const [nombre, setNombre] = useState("");
@@ -100,7 +100,7 @@ export default function MyProfile() {
                 </Text>
 
                 <View className="w-full mx-auto mt-4 px-5 mb-2 bg-green-300 p-2 rounded-full items-center flex-row gap-2">
-                  <FontAwesome6 name="helhelmet" size={16} color="black" />
+                  <FontAwesome name="user" size={16} color="black" />
                   <Text className="text-lg font-Inter-Bold ">
                     Usuario
                   </Text>
