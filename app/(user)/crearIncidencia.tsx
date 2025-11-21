@@ -1,47 +1,63 @@
 import CustomButton from '@/components/CustomButton';
 import { supabase } from "@/utils/supabase";
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Stack, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
-// --- OPCIONES FIJAS DE PRIORIDAD ---
 const PRIORIDAD_OPCIONES = [
     { id_prioridad: 1, nombre: 'Baja' },
     { id_prioridad: 2, nombre: 'Media' }, 
     { id_prioridad: 3, nombre: 'Alta' },
 ];
 
-// --- Interfaces de Datos ---
 
 interface IncidenciaData {
     titulo: string;
     descripcion: string;
-    id_equipo: null; 
-    nombre_equipo_manual: string; 
+    id_equipo: number | null;
     id_prioridad: number | null;
-    // 💡 NUEVO: Campo para el estado
     id_estado: number; 
 }
 
-// --- Componente de la Pantalla ---
 export default function ReportarIncidenciaScreen() { 
     const router = useRouter();
     
-    // 1. Estados para los datos del formulario
     const [formData, setFormData] = useState<IncidenciaData>({
         titulo: '',
         descripcion: '',
-        id_equipo: null, 
-        nombre_equipo_manual: '', 
+        id_equipo: null,
         id_prioridad: null,
-        // 💡 NUEVO: Inicializar id_estado en 1
         id_estado: 1, 
     });
-    
-    // 2. Estados de control
-    const [enviando, setEnviando] = useState(false);
 
-    // Manejador de Cambios
+    interface Equipo {
+    id_equipo: number;
+    nombre: string;
+}
+    
+    const [enviando, setEnviando] = useState(false);
+    const [equiposList, setEquiposList] = useState<Equipo[]>([]);
+    const [showEquipoModal, setShowEquipoModal] = useState(false);
+    const [equipoSeleccionadoNombre, setEquipoSeleccionadoNombre] = useState<string>('');
+
+    useEffect(() => {
+        const fetchEquipos = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('equipos')
+                    .select('id_equipo, nombre')
+                    .order('nombre', { ascending: true });
+                
+                if (error) throw error;
+                if (data) setEquiposList(data);
+            } catch (err) {
+                console.error("Error cargando equipos:", err);
+            }
+        };
+        fetchEquipos();
+    }, []);
+
     const handleChange = (name: keyof IncidenciaData, value: string | number | null) => {
         let processedValue: any = value;
         
@@ -55,23 +71,25 @@ export default function ReportarIncidenciaScreen() {
         }));
     };
 
-    // Manejador de selección de prioridad (usado por los botones)
     const handlePrioridadSelect = (id: number) => {
         handleChange('id_prioridad', id);
     };
 
-    // Manejador de Envío (Supabase)
+    const handleSelectEquipo = (equipo: Equipo) => {
+        handleChange('id_equipo', equipo.id_equipo);
+        setEquipoSeleccionadoNombre(equipo.nombre);
+        setShowEquipoModal(false);
+    };
+
     const handleSubmit = async () => {
-        // Validación de campos
-        if (!formData.titulo || !formData.descripcion || !formData.nombre_equipo_manual || !formData.id_prioridad) {
-            Alert.alert("Campos requeridos", "Por favor, completa todos los campos del reporte (Título, Descripción, Equipo y Prioridad).");
+        if (!formData.titulo || !formData.descripcion || !formData.id_equipo || !formData.id_prioridad) {
+            Alert.alert("Campos requeridos", "Por favor, completa todos los campos, incluyendo la selección del equipo.");
             return;
         }
         
         setEnviando(true);
 
         try {
-            // Obtener el ID del usuario
             const { data: { user }, error: userError } = await supabase.auth.getUser();
             if (userError) throw userError;
             if (!user) {
@@ -80,19 +98,15 @@ export default function ReportarIncidenciaScreen() {
                 return;
             }
 
-            // CORRECCIÓN CLAVE: 
-            // Se elimina 'nombre_equipo_manual' para evitar el error PGRST204.
-            // 💡 NUEVO: Se añade id_estado con valor 1.
             const dataToSend = {
                 titulo: formData.titulo,
                 descripcion: formData.descripcion,
                 id_prioridad: formData.id_prioridad,
                 id_usuario: user.id,
-                // ID de estado fijo: 1 (Reportado/Pendiente)
                 id_estado: 1,
+                id_equipo: formData.id_equipo
             };
 
-            // Insertar la incidencia
             const { error: insertError } = await supabase
                 .from('incidencias')
                 .insert(dataToSend);
@@ -104,23 +118,35 @@ export default function ReportarIncidenciaScreen() {
 
         } catch (err: any) {
             console.error('Error al enviar la incidencia:', err);
-            Alert.alert("Error de envío", `No se pudo registrar la incidencia: ${err.message}. Revise si la columna id_equipo o id_estado en la tabla incidencias permite NULL o si tiene problemas de RLS.`);
+            Alert.alert("Error de envío", `se pudo registrar la incidencia: ${err.message}. Revise si la columna id_equipo o id_estado en la tabla incidencias permite NULL o si tiene problemas de RLS.`);
         } finally {
             setEnviando(false);
         }
     };
 
-
-    // --- Renderizado del Formulario (React Native) ---
     return (
         <View style={styles.container}>
+            <Stack.Screen 
+                options={{
+                    title: "Crear Incidencia", // Título de la cabecera
+                    headerLeft: () => (
+                        <Pressable 
+                            onPress={() => router.back()} 
+                            className='mx-4'
+                        >
+                            <Ionicons name="arrow-back" size={24} color="black" />
+                        </Pressable>
+                    ),
+                }} 
+            />
             <ScrollView contentContainerStyle={styles.scrollContent}>
                 
-                <Text style={styles.header}>Reportar Nueva Incidencia</Text>
+                <Text
+                    className='text-3xl font-Inter-Bold text-gray-900 mb-6 text-center'
+                >Nueva Incidencia</Text>
                 
-                {/* Campo: Título */}
                 <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Título:</Text>
+                    <Text className='font-Inter-Bold text-gray-600 text-lg'>Título:</Text>
                     <TextInput
                         style={styles.input}
                         placeholder="Ej: La computadora no encendió"
@@ -130,9 +156,8 @@ export default function ReportarIncidenciaScreen() {
                     />
                 </View>
 
-                {/* Campo: Descripción Detallada */}
                 <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Descripción Detallada:</Text>
+                    <Text className='font-Inter-Bold text-gray-600 text-lg'>Descripción Detallada:</Text>
                     <TextInput
                         style={[styles.input, styles.textarea]}
                         placeholder="Detalles adicionales"
@@ -144,30 +169,29 @@ export default function ReportarIncidenciaScreen() {
                     />
                 </View>
 
-                {/* Campo: Equipo (Texto Libre) */}
                 <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Equipo:</Text>
-                    <TextInput
-                        style={styles.input}
-                        placeholder="Escriba el nombre o identificador del equipo"
-                        value={formData.nombre_equipo_manual}
-                        onChangeText={(text) => handleChange('nombre_equipo_manual', text)}
-                        editable={!enviando}
-                    />
+                    <Text className='font-Inter-Bold text-gray-600 text-lg'>Equipo:</Text>
+                    <TouchableOpacity 
+                        style={styles.selectorInput}
+                        onPress={() => setShowEquipoModal(true)}
+                        disabled={enviando}
+                    >
+                        <Text style={equipoSeleccionadoNombre ? styles.selectorText : styles.placeholderText}>
+                            {equipoSeleccionadoNombre || "Seleccione un equipo de la lista"}
+                        </Text>
+                        <Text style={{color: '#9ca3af'}}>▼</Text>
+                    </TouchableOpacity>
                 </View>
 
-                {/* Campo: Prioridad (Botones Seleccionables) */}
                 <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Nivel de Prioridad:</Text>
+                    <Text className='font-Inter-Bold text-gray-600 text-lg'>Nivel de Prioridad:</Text>
                     <View style={styles.prioridadOptionsContainer}>
                         {PRIORIDAD_OPCIONES.map((prioridad) => (
                             <TouchableOpacity
                                 key={prioridad.id_prioridad}
                                 style={[
                                     styles.prioridadOption,
-                                    // Aplica estilo de seleccionado si el ID coincide
                                     formData.id_prioridad === prioridad.id_prioridad && styles.prioridadOptionSelected,
-                                    // Color de fondo dinámico para mejor visualización
                                     { backgroundColor: getPrioridadColor(prioridad.id_prioridad) } 
                                 ]}
                                 onPress={() => handlePrioridadSelect(prioridad.id_prioridad)}
@@ -184,12 +208,8 @@ export default function ReportarIncidenciaScreen() {
                     </View>
                 </View>
 
-                <Text style={styles.noteText}>
-                    *El estado inicial se ha configurado automáticamente como **Reportado (1)**.
-                </Text>
             </ScrollView>
             
-            {/* Botón de envío */}
             <View style={styles.buttonContainer}>
                 <CustomButton
                     label={enviando ? 'Enviando...' : 'Enviar Reporte'}
@@ -197,25 +217,65 @@ export default function ReportarIncidenciaScreen() {
                     disabled={enviando}
                 />
             </View>
+
+            <Modal
+                visible={showEquipoModal}
+                animationType="slide"
+                transparent={true}
+                onRequestClose={() => setShowEquipoModal(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Seleccionar Equipo</Text>
+                        
+                        {equiposList.length === 0 ? (
+                            <Text style={{textAlign: 'center', padding: 20, color: '#6b7280'}}>
+                                Cargando equipos o no hay datos...
+                            </Text>
+                        ) : (
+                            <FlatList
+                                data={equiposList}
+                                keyExtractor={(item) => item.id_equipo.toString()}
+                                renderItem={({ item }) => (
+                                    <TouchableOpacity 
+                                        style={styles.modalItem}
+                                        onPress={() => handleSelectEquipo(item)}
+                                    >
+                                        <Text
+                                            className='font-Inter-Regular text-lg'
+                                        >{item.nombre}</Text>
+                                    </TouchableOpacity>
+                                )}
+                            />
+                        )}
+
+                        <CustomButton
+                            label="Cancelar"
+                            color="bg-white"
+                            borderColor="b-slate-800 border"
+                            textColor='black'
+                            onPress={() => setShowEquipoModal(false)}
+                        />
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }
 
-// Función auxiliar para asignar colores a las prioridades
 const getPrioridadColor = (id: number) => {
     switch (id) {
         case 1:
-            return '#dcfce7'; // Verde para Baja
+            return '#dcfce7'; 
         case 2:
-            return '#fef9c3'; // Amarillo para Media
+            return '#fef9c3'; 
         case 3:
-            return '#fee2e2'; // Rojo para Alta
+            return '#fee2e2'; 
         default:
-            return '#f3f4f6'; // Gris por defecto
+            return '#f3f4f6'; 
     }
 }
 
-// --- Estilos ---
 const styles = StyleSheet.create({
     container: {
         flex: 1,
@@ -225,21 +285,8 @@ const styles = StyleSheet.create({
         padding: 20,
         paddingBottom: 100, 
     },
-    header: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#1f2937',
-        marginBottom: 25,
-        textAlign: 'center',
-    },
     inputGroup: {
         marginBottom: 20,
-    },
-    label: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#374151',
-        marginBottom: 8,
     },
     input: {
         backgroundColor: 'white',
@@ -253,7 +300,6 @@ const styles = StyleSheet.create({
         height: 100,
         textAlignVertical: 'top', 
     },
-    // Estilos para los botones de Prioridad
     prioridadOptionsContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -268,7 +314,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     prioridadOptionSelected: {
-        borderColor: '#2563eb', // Borde azul para el seleccionado
+        borderColor: '#2563eb', 
         borderWidth: 2,
     },
     prioridadOptionText: {
@@ -280,7 +326,6 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         color: '#1f2937',
     },
-    // Estilos generales
     noteText: {
         fontSize: 12,
         color: '#6b7280',
@@ -297,4 +342,64 @@ const styles = StyleSheet.create({
       borderTopWidth: 1,
       borderTopColor: '#e5e7eb',
     },
+    selectorInput: {
+        backgroundColor: 'white',
+        borderWidth: 1,
+        borderColor: '#d1d5db',
+        borderRadius: 8,
+        padding: 12,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    selectorText: {
+        fontSize: 16,
+        color: '#1f2937',
+    },
+    placeholderText: {
+        fontSize: 16,
+        color: '#9ca3af',
+    },
+    modalContent: {
+        backgroundColor: 'white',
+        borderRadius: 12,
+        padding: 20,
+        width: '100%',
+        maxHeight: '60%',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 5,
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        marginBottom: 15,
+        textAlign: 'center',
+        color: '#1f2937',
+    },
+    modalItem: {
+        paddingVertical: 15,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f3f4f6',
+    },
+    modalCloseButton: {
+        marginTop: 15,
+        padding: 10,
+        alignItems: 'center',
+        backgroundColor: '#f3f4f6',
+        borderRadius: 8,
+    },
+    modalCloseText: {
+        color: '#4b5563',
+        fontWeight: '600',
+    }
 });
