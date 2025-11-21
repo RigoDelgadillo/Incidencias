@@ -52,6 +52,10 @@ const UserLayout = () => {
         name="crearIncidencia"
         options={{
           drawerItemStyle: { display: 'none' },
+          headerTitle: () => <CustomHeaderTitleDrawer 
+          title="Crear Incidencia"
+          />,
+          headerShown: true,
         }}
       />
     </Drawer>
