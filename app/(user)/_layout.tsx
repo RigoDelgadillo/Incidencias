@@ -39,13 +39,19 @@ const UserLayout = () => {
         }}
       />
       <Drawer.Screen
-        name="myprofile"
+        name="myProfile"
         options={{
           drawerLabel: "Mi perfil",
           headerTitle: () => <CustomHeaderTitleDrawer 
           title="Mi perfil"
           />,
           headerShown: true,
+        }}
+      />
+      <Drawer.Screen
+        name="crearIncidencia"
+        options={{
+          drawerItemStyle: { display: 'none' },
         }}
       />
     </Drawer>
