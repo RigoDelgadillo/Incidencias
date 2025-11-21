@@ -73,6 +73,41 @@ export default function Index() {
       setLoading(false);
     }
   }, []);
+  const handleDeleteReport = async () => {
+
+        Alert.alert(
+          "Confirmar eliminación",
+          "¿Estás seguro de que deseas eliminar este reporte?",
+          [
+            { text: "Cancelar", style: "cancel" },
+            {
+              text: "Eliminar",
+              style: "destructive",
+              onPress: async () => {
+                await deleteReport();
+      
+              },
+            },
+          ]
+        );
+      }
+      const deleteReport = async () => {
+        if (!selectedIncidencia) return;
+
+        try {
+          const { error } = await supabase
+            .from("incidencias")
+            .delete()
+            .eq("id_incidencia", selectedIncidencia.id_incidencia);
+          if (error) throw error;
+
+          Alert.alert("Éxito", "El reporte ha sido eliminado.");
+          handleCloseModal();
+          getIncidencias();
+        } catch (err: any) {
+          Alert.alert("Error", `No se pudo eliminar el reporte: ${err.message}`);
+        }
+      }
 
   useEffect(() => {
     getIncidencias();
@@ -240,8 +275,11 @@ export default function Index() {
                   <Text className="text-lg font-Inter-Regular  mb-2">
                     {getEstadoTexto(selectedIncidencia.id_estado)}
                   </Text>
-                  
-
+                  <CustomButton
+                    label="Eliminar Reporte"
+                    color="bg-red-500"
+                    onPress={handleDeleteReport}
+                  />
                   <CustomButton
                     label="Cerrar"
                     color="bg-white"
