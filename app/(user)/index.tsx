@@ -227,7 +227,7 @@ export default function Index() {
       <View className="absolute bottom-6 left-4 right-4">
         <CustomButton
           label="Crear nuevo reporte"
-          onPress={() => router.push("/(user)/reporteincidencia")}
+          onPress={() => router.push("/(user)/crearIncidencia")}
         />
       </View>
 
