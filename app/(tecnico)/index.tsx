@@ -1,5 +1,5 @@
+import CustomButton from "@/components/CustomButton";
 import { supabase } from "@/utils/supabase";
-import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
@@ -74,7 +74,6 @@ export default function Index() {
 
       const incidenciaIds = asignaciones.map((a) => a.id_incidencia);
 
-      // --- 3. BÚSQUEDA CORREGIDA ---
       const { data, error } = await supabase
         .from("incidencias")
         .select(`
@@ -153,7 +152,7 @@ export default function Index() {
 
       if (error) throw error;
 
-      Alert.alert("¡Éxito!", "La tarea ha sido marcada como terminada.");
+      Alert.alert("¡Éxito!", "La tarea ha sido marcada como resuelta.");
 
       setIncidencias(prevIncidencias =>
         prevIncidencias.map(inc =>
@@ -175,26 +174,60 @@ export default function Index() {
 
   const getPrioridadColor = (id_prioridad: number) => {
     switch (id_prioridad) {
-      case 1: return "border-red-500";
-      case 2: return "border-yellow-400";
-      case 3: return "border-green-500";
-      default: return "border-gray-300";
+      case 1:
+        return "border-green-500";
+      case 2:
+        return "border-yellow-400";
+      case 3:
+        return "border-red-500";
+      default:
+        return "border-gray-300";
     }
   };
 
   const getEstadoTexto = (id_estado: number) => {
     switch (id_estado) {
-      case 1: return "Nuevo";
-      case 2: return "En proceso";
-      case 3: return "Resuelto";
-      default: return "Desconocido";
+      case 1:
+        return "Nuevo";
+      case 2:
+        return "En proceso";
+      case 3:
+        return "Resuelto";
+      default:
+        return "Desconocido";
+    }
+  };
+
+    const getPrioridadTexto = (id_prioridad: number) => {
+    switch (id_prioridad) {
+      case 1:
+        return "Baja";
+      case 2:
+        return "Media";
+      case 3:
+        return "Alta";
+      default:
+        return "Desconocida";
+    }
+  };
+
+  const getPrioridadTextColor = (id_prioridad: number) => {
+    switch (id_prioridad) {
+      case 1:
+        return "text-green-500"; 
+      case 2:
+        return "text-yellow-500"; 
+      case 3:
+        return "text-red-500"; 
+      default:
+        return "text-gray-300"; 
     }
   };
 
   const renderIncidencia = ({ item }: { item: IncidenciaSimple }) => (
     <TouchableOpacity
-      onPress={() => handleOpenModal(item)} 
-      className={`flex-row items-center justify-between bg-white rounded-xl border-l-4 px-4 py-3 shadow-sm my-4 mx-4 ${getPrioridadColor(
+      onPress={() => handleOpenModal(item)}
+      className={`flex-row items-center justify-between bg-white rounded-xl border-l-4 px-4 py-3 shadow-sm mt-4 mx-4 ${getPrioridadColor(
         item.id_prioridad
       )}`}
     >
@@ -202,9 +235,15 @@ export default function Index() {
         <Text className="text-xl font-semibold text-gray-900" numberOfLines={1}>
           {item.titulo}
         </Text>
-        <Text className="text-base text-gray-600">{getEstadoTexto(item.id_estado)}</Text>
+        <View className="flex-row justify-between mt-1">
+          <Text className="text-base text-gray-600">
+            {getEstadoTexto(item.id_estado)}
+          </Text>
+          <Text className={`font-Inter-Bold text-lg ${getPrioridadTextColor(item.id_prioridad)}`}>
+            {getPrioridadTexto(item.id_prioridad)}
+          </Text>
+        </View>
       </View>
-      <Ionicons name="chevron-forward" size={22} color="#9CA3AF" />
     </TouchableOpacity>
   );
 
@@ -221,12 +260,10 @@ export default function Index() {
           data={incidencias}
           renderItem={renderIncidencia}
           keyExtractor={(item) => item.id_incidencia.toString()}
-          contentContainerStyle={{ paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
         />
       )}
 
-      {/* --- INICIO DEL MODAL --- */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -284,35 +321,25 @@ export default function Index() {
                   <Text className="text-lg font-Inter-Regular mb-2">
                     {getEstadoTexto(selectedIncidencia.id_estado)}
                   </Text>
-                  
-                  {selectedIncidencia.id_estado !== 3 && (
-                    <TouchableOpacity
-                      onPress={handleCompletarTarea}
-                      disabled={isUpdating}
-                      className={`py-3 rounded-lg items-center justify-center mt-3 bg-green-600 ${isUpdating ? "opacity-50" : ""}`}
-                    >
-                      <Text className={`font-semibold text-lg text-white`}>
-                        {isUpdating ? "Guardando..." : "Tarea terminada"}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
 
-                  <TouchableOpacity
+                  <CustomButton
+                    label="Marcar como Resuelta"
+                    color="bg-green-500"
+                    onPress={handleCompletarTarea}
+                  />
+                  <CustomButton
+                    label="Cerrar"
+                    color="bg-white"
                     onPress={handleCloseModal}
-                    disabled={isUpdating}
-                    className={`py-3 rounded-lg items-center justify-center mt-3 bg-white b-slate-800 border`}
-                  >
-                    <Text className={`font-semibold text-lg text-gray-800`}>
-                      Cerrar
-                    </Text>
-                  </TouchableOpacity>
+                    textColor="text-gray-800"
+                    borderColor="b-slate-800 border"
+                  />
                 </View>
               </ScrollView>
             )}
           </Pressable>
         </Pressable>
       </Modal>
-      {/* --- FIN DEL MODAL --- */}
     </View>
   );
 }
